@@ -79,7 +79,6 @@ void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, string current
         return;
     }
 
-    cout<<current_code<<endl;
     string left_code = current_code+"0";
     string right_code = current_code+"1";
 
@@ -110,6 +109,7 @@ int size_tree(std::shared_ptr<HuffmanNode> htree){
     return size_tree(htree->getLeftChild())+1+size_tree(htree->getRightChild());
 }
 
+
 int main(int argc, char* argv[]){
 
     // read filename from argument
@@ -134,9 +134,9 @@ int main(int argc, char* argv[]){
 
     cout << "Reading file took: " << u_vector << " usecs;" << endl;
 
-    long tree_timer;
-    {
-        utimer t0("tree_code", &tree_timer);
+    // long tree_timer;
+    // {
+    //     utimer t0("tree_code", &tree_timer);
     vector<std::shared_ptr<HuffmanNode>> ht_leaves;
     for(int i=0; i<128; i++){
         if(count_vector[i] != 0){
@@ -161,11 +161,41 @@ int main(int argc, char* argv[]){
     //     cout<<char(i) << ", " << count_vector[i] << ", " << std::bitset<32>((*code_table)[i]) << endl;
     // }
     for(int i = 0; i<code_table->size(); i++){
-        cout<<char(i) << ", " << count_vector[i] << ", " << (*code_table)[i] << endl;
+        clog<<char(i) << ", " << count_vector[i] << ", " << (*code_table)[i] << endl;
     }
-    }
-    cout<<"Tree creation and code extraction took " << tree_timer << " usecs" << endl;
+    // }
+    // cout<<"Tree creation and code extraction took " << tree_timer << " usecs" << endl;
 
+    std::ifstream file(filename);
+
+    std::stringstream file_buffer;
+    file_buffer << file.rdbuf();
+    string encoded_string = file_buffer.str();
     
+    cout<< "File is " << encoded_string.size() << " characters long" <<endl;
 
+
+    std::ofstream encoded_file("encoded_"+filename, std::ios::binary);
+
+    char buffer = 0;
+    int i = 0;
+    for(int j=0; j<encoded_string.size(); j++){
+        if(i==8){
+            encoded_file.write(&buffer, 1);
+            buffer = 0;
+            i = 0;
+        }
+        char bit = encoded_string[j];
+        if(bit == '0'){
+            buffer = buffer << 1; 
+        }
+        else{
+            buffer = (buffer << 1) + 1; 
+        }
+        i++;
+    }
+    if(i!=0){
+        buffer = buffer << (8-i);
+        encoded_file.write(&buffer, 1);
+    }
 }
