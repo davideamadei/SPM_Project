@@ -7,11 +7,11 @@ HuffmanNode::HuffmanNode(char init_ch, int init_frequency){
 
 char HuffmanNode::getCh(){return ch;}
 int HuffmanNode::getFrequency(){return frequency;}
-HuffmanNode* HuffmanNode::getLeftChild(){return left_child;}
-HuffmanNode* HuffmanNode::getRightChild(){return right_child;}
-HuffmanNode* HuffmanNode::getParent(){return parent;}
+std::shared_ptr<HuffmanNode> HuffmanNode::getLeftChild(){return left_child;}
+std::shared_ptr<HuffmanNode> HuffmanNode::getRightChild(){return right_child;}
+std::shared_ptr<HuffmanNode> HuffmanNode::getParent(){return parent;}
 
-bool HuffmanNode::setLeftChild(HuffmanNode* new_child){
+bool HuffmanNode::setLeftChild(std::shared_ptr<HuffmanNode> new_child){
     // child can be inserted only if it was previously nullptr
     // returns true if succesful, false otherwise
     if(left_child==nullptr){
@@ -22,7 +22,7 @@ bool HuffmanNode::setLeftChild(HuffmanNode* new_child){
         return false;
     }
 }
-bool HuffmanNode::setRightChild(HuffmanNode* new_child){
+bool HuffmanNode::setRightChild(std::shared_ptr<HuffmanNode> new_child){
     // child can be inserted only if it was previously nullptr
     // returns true if succesful, false otherwise
     if(right_child==nullptr){
@@ -33,7 +33,7 @@ bool HuffmanNode::setRightChild(HuffmanNode* new_child){
         return false;
     }
 }
-bool HuffmanNode::setParent(HuffmanNode* new_parent){
+bool HuffmanNode::setParent(std::shared_ptr<HuffmanNode> new_parent){
     // parent can be inserted only if it was previously nullptr
     // returns true if succesful, false otherwise
     if(parent==nullptr){

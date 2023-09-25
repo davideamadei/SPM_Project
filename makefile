@@ -21,14 +21,14 @@ TESTSRCS=$(shell find . -name $(TESTDIR)/*.cpp)
 
 LIBS = $(UTILDIR)/utimer.hpp $(UTILDIR)/utils.hpp $(HTDIR)/huffman_node_class.hpp
 
-all: seq_hc.out read_test.out
+all: $(EXEDIR)/seq_hc.out 
 
-test: read_test.out
+test: $(EXEDIR)/read_test.out
 
-seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/utils.o $(HTDIR)/huffman_node_class.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o "$(EXEDIR)/$@" $< $(ODIR)/utils.o  $(HTDIR)/huffman_node_class.o
+$(EXEDIR)/seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/utils.o $(HTDIR)/huffman_node_class.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(HTDIR)/huffman_node_class.o
 
-read_test.out: $(TESTDIR)/read_test.cpp $(LIBS)
+$(EXEDIR)/read_test.out: $(TESTDIR)/read_test.cpp $(LIBS)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o "$(EXEDIR)/$@" $<
 
 $(ODIR)/%.o: %.cpp
