@@ -2,21 +2,12 @@ CXX = g++
 CXXFLAGS = -std=c++20
 CPPFLAGS = -pthread -O3
 
-vpath %.cpp src
-
+BUILDDIR = ./
 SRCDIR = ./src
 TESTDIR = ./test
 ODIR = ./obj
 UTILDIR = ./src/utils
 HTDIR = ./src/huffman_tree
-EXEDIR = ./bin
-
-SOURCES=$(shell find . -name $(SRCDIR)/*.cpp)
-TESTSRCS=$(shell find . -name $(TESTDIR)/*.cpp)
-# OBJECTS=$(SOURCES:%.cpp=$(ODIR)/%.o)
-# OBJECTS+=$(TESTDIR:%.cpp=$(ODIR)/%.o)
-# OBJECTS+=$(UTILDIR:%.cpp=$(ODIR)/%.o)
-# OBJECTS+=$(HTDIR:%.cpp=$(ODIR)/%.o)
 
 
 .DEFAULT_GOAL := all
@@ -24,23 +15,9 @@ TESTSRCS=$(shell find . -name $(TESTDIR)/*.cpp)
 
 LIBS = $(UTILDIR)/utimer.hpp $(UTILDIR)/utils.hpp $(HTDIR)/huffman_tree.hpp
 
-all: $(EXEDIR)/seq_hc.out 
+all: seq_hc.out decode_test.out
 
-test: $(EXEDIR)/read_test.out
-
-$(EXEDIR)/seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(UTILDIR)/utils.o $(HTDIR)/huffman_tree.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(UTILDIR)/utils.o  $(HTDIR)/huffman_tree.o
-
-$(EXEDIR)/read_test.out: $(TESTDIR)/read_test.cpp $(LIBS)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o "$(EXEDIR)/$@" $<
-
-$(ODIR)/%.o: %.cpp
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
-
-%.out: $(ODIR)/%.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $@ $<
-
-download_txt:
+download_txt: commedia.txt war-and-peace.txt
 	wget -O tmp.txt -c https://dmf.unicatt.it/~della/pythoncourse18/commedia.txt
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > commedia.txt
 	rm tmp.txt
@@ -48,6 +25,43 @@ download_txt:
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > war-and-peace.txt
 	rm tmp.txt
 
-clean:
-	rm $(ODIR)/*.o
+test: all 
+	./seq_hc.out war-and-peace.txt encoded-war-and-peace.dat >/dev/null 2>/dev/null
+	./decode_test.out encoded-war-and-peace.dat decoded-war-and-peace.txt >/dev/null 2>/dev/null
+	diff war-and-peace.txt decoded-war-and-peace.txt
+	./seq_hc.out commedia.txt encoded-commedia.dat >/dev/null 2>/dev/null
+	./decode_test.out encoded-commedia.dat decoded-commedia.txt >/dev/null 2>/dev/null
+	diff commedia.txt decoded-commedia.txt
 
+
+seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/utils.o $(ODIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(ODIR)/huffman_tree.o
+
+decode_test.out: $(ODIR)/decode_test.o $(LIBS) $(ODIR)/utils.o $(ODIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(ODIR)/huffman_tree.o
+
+# $(ODIR)/seq_hc.o : $(SRCDIR)/seq_hc.cpp
+# 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+
+$(ODIR)/%.o: $(TESTDIR)/%.cpp
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+	
+$(ODIR)/%.o: $(SRCDIR)/%.cpp
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+
+$(ODIR)/%.o: $(UTILDIR)/%.cpp
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+
+$(ODIR)/%.o: $(HTDIR)/%.cpp
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+
+%.out: $(ODIR)/%.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $@ $<
+
+
+
+clean:
+	rm -rf $(ODIR)/*.o
+
+cleaner: clean
+	rm -rf *.out *.dat decoded*

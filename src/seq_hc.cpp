@@ -10,61 +10,13 @@
 #include "utils.hpp"
 #include "huffman_tree.hpp"
 
-using std::cout, std::clog, std::endl, std::thread, std::vector, std::function, std::async, std::string;
-
-
-int current_threads = 0;
-std::mutex t_mutex;
-
-
-void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, vector<bool> current_code,
-                        std::shared_ptr<vector<vector<bool>>> code_table){
-
-    // base case, a node has no children
-    if(huffman_tree->getLeftChild()==nullptr && huffman_tree->getRightChild()==nullptr){
-        (*code_table)[huffman_tree->getCh()] = current_code;
-        return;
-    }
-
-    vector<bool> left_code = current_code;
-    left_code.push_back(0);
-    vector<bool> right_code = current_code;
-    right_code.push_back(1);
-
-    // bitshift to left the given code and add 1 for the right child
-    // int left_code = (current_code << 1);
-    // int right_code = (current_code << 1) + 1;
-    
-    extract_codes_rec(huffman_tree->getLeftChild(), left_code, code_table);
-    extract_codes_rec(huffman_tree->getRightChild(), right_code, code_table);
-    
-    return;
-}
-
-std::shared_ptr<vector<vector<bool>>> extract_codes(std::shared_ptr<HuffmanNode> huffman_tree){
-    std::shared_ptr<vector<vector<bool>>>code_table(new vector<vector<bool>>(128));
-
-    vector<bool> left_code;
-    left_code.push_back(0);
-    vector<bool> right_code;
-    right_code.push_back(1);
-    
-    extract_codes_rec(huffman_tree->getLeftChild(), left_code, code_table);
-    extract_codes_rec(huffman_tree->getRightChild(), right_code, code_table);
-    
-    return code_table;
-}
-
-int size_tree(std::shared_ptr<HuffmanNode> htree){
-    if(htree==nullptr){return 0;}
-    return size_tree(htree->getLeftChild())+1+size_tree(htree->getRightChild());
-}
-
+using std::cout, std::clog, std::endl, std::string;
 
 int main(int argc, char* argv[]){
 
     // read filename from argument
     string filename = argv[1];
+    string output_filename = argv[2];
 
     std::ifstream file(filename);
 
@@ -72,14 +24,9 @@ int main(int argc, char* argv[]){
     file_buffer << file.rdbuf();
     string file_str = file_buffer.str();
 
-    vector<int> count_vector;
-    long u_vector;
-    {
-        utimer t0("array", &u_vector);
-        
-        count_vector = count_characters(file_str);
+    std::vector<int> count_vector;
 
-    }
+    count_vector = count_characters(file_str);
 
     for(int i=0;i<file_str.size();i++){
         if(file_str[i]<0){
@@ -94,26 +41,23 @@ int main(int argc, char* argv[]){
         clog << i << ", " << char(i) << ", " << count_vector[i] << endl;
     }
 
-    cout << "Reading file took: " << u_vector << " usecs;" << endl;
-
-    // long tree_timer;
-    // {
-    //     utimer t0("tree_code", &tree_timer);
-    
-
     HuffmanTree ht(count_vector);
 
     auto code_table = ht.getCodes();
 
-    vector<char> buffer_vec;
+
+    std::vector<char> buffer_vec;
     int buf_len = 0;
     char buffer = 0;
     int remaining;
     int length;
     int code;
     int max_size = sizeof(char) * 8;
+
+    //there for consistency with parallel version
+    int n_chunks = 1;
+
     for(int i=0; i<file_str.size(); i++){
-        // cout<<i << " " << file_str[i]<<endl;
         auto code_pair = code_table[file_str[i]];
         length = code_pair.first;
         code = code_pair.second;
@@ -121,7 +65,6 @@ int main(int argc, char* argv[]){
         while(remaining != 0){
             if(buf_len==max_size){
                 buffer_vec.push_back(buffer);
-                // output_file.write(&buffer, 1);
                 buffer = 0;
                 buf_len = 0;
             }
@@ -147,17 +90,24 @@ int main(int argc, char* argv[]){
         // output_file.write(&buffer, 1);
     }
 
-    cout<< "File is " << file_str.size() << " characters long" <<endl;
+    char ending_padding = max_size - buf_len;
+
+    int chunk_byte_size = buffer_vec.size();
+
+    cout << "File is " << file_str.size() << " characters long" <<endl;
+    cout << "Encoded file is " << chunk_byte_size << " bits" << endl;
+
+    std::ofstream output_file(output_filename, std::ios::binary);
 
 
-    std::ofstream output_file("encoded_"+filename, std::ios::binary);
+    output_file.write(reinterpret_cast<const char *>(&n_chunks), sizeof(n_chunks));
 
-
-    long timer;
-    {
-        utimer to("test", &timer);
-    
-    output_file.write(buffer_vec.data(), buffer_vec.size());
+    for(auto &f : count_vector){
+        output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
     }
-    cout<<timer<<endl;
+
+    output_file.write(reinterpret_cast<const char *>(&chunk_byte_size), sizeof(chunk_byte_size));
+    output_file.write(&ending_padding, 1);
+    output_file.write(buffer_vec.data(), buffer_vec.size());
+    return 0;
 }
