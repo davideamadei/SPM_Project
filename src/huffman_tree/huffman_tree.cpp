@@ -1,6 +1,9 @@
 #include "huffman_tree.hpp"
 #include <queue>
 #include <iostream>
+
+// Huffman Node implementation
+
 HuffmanNode::HuffmanNode(char init_ch, int init_frequency){
         ch = init_ch;
         frequency = init_frequency;
@@ -46,27 +49,26 @@ bool HuffmanNode::setParent(std::shared_ptr<HuffmanNode> new_parent){
     }
 }
 
-void HuffmanTree::extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, std::vector<bool> *code){
+
+// Huffman Tree implementation
+
+
+std::shared_ptr<HuffmanNode> HuffmanTree::getRoot(){return root;}
+
+std::vector<std::pair<int, int>> HuffmanTree::getCodes(){return code_table;}
+
+void HuffmanTree::extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, int code, int length){
 
     // base case, a node has no children
     if(huffman_tree->getLeftChild()==nullptr && huffman_tree->getRightChild()==nullptr){
-        code_table[int(huffman_tree->getCh())] = std::vector<bool>(*code);
+        code_table[int(huffman_tree->getCh())] = std::make_pair(length, code);
         return;
     }
 
-
-    code->push_back(0);
-    extract_codes_rec(huffman_tree->getLeftChild(), code);
-    code->pop_back();
-    code->push_back(1);    
-    extract_codes_rec(huffman_tree->getRightChild(), code);
-    code->pop_back();
-
-    for(int i=0;i<code_table[50].size();i++){
-            std::cout<<code_table[50][i];
-        }
-        std::cout<<std::endl;
-        std::cout<<std::endl;
+    code<<=1;
+    extract_codes_rec(huffman_tree->getLeftChild(), code, length+1);
+    code+=1;    
+    extract_codes_rec(huffman_tree->getRightChild(), code, length+1);
         
     return;
 }
@@ -126,8 +128,6 @@ HuffmanTree::HuffmanTree(std::vector<int> char_counts){
         min = min_node();
         second_min = min_node();
 
-        std::clog << min->getFrequency() << std::endl;
-        std::clog << second_min->getFrequency() << std::endl;
         std::shared_ptr<HuffmanNode> new_node(new HuffmanNode(0, min->getFrequency()+second_min->getFrequency()));
 
         new_node->setLeftChild(min);
@@ -145,14 +145,7 @@ HuffmanTree::HuffmanTree(std::vector<int> char_counts){
         root = comp_queue.front();
     }
 
-    std::vector<bool> code;
-    code.push_back(0);
     
-    extract_codes_rec(root->getLeftChild(), &code);
-
-    code.pop_back();    
-    code.push_back(1);
-    extract_codes_rec(root->getRightChild(), &code);
+    extract_codes_rec(root->getLeftChild(), 0, 1);
+    extract_codes_rec(root->getRightChild(), 1, 1);
 }
-std::shared_ptr<HuffmanNode> HuffmanTree::getRoot(){return root;}
-std::vector<std::vector<bool>> HuffmanTree::getCodes(){return code_table;}

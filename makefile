@@ -44,7 +44,9 @@ download_txt:
 	wget -O tmp.txt -c https://dmf.unicatt.it/~della/pythoncourse18/commedia.txt
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > commedia.txt
 	rm tmp.txt
-	wget -O war-and-peace.txt -c https://raw.githubusercontent.com/mmcky/nyu-econ-370/master/notebooks/data/book-war-and-peace.txt
+	wget -O tmp.txt -c https://raw.githubusercontent.com/mmcky/nyu-econ-370/master/notebooks/data/book-war-and-peace.txt
+	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > war-and-peace.txt
+	rm tmp.txt
 
 clean:
 	rm $(ODIR)/*.o

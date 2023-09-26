@@ -30,12 +30,12 @@ class HuffmanNode{
 class HuffmanTree{
     private:
         std::shared_ptr<HuffmanNode> root;
-        std::vector<std::vector<bool>> code_table = std::vector<std::vector<bool>>(128);
-        void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, std::vector<bool> *current_code);
+        std::vector<std::pair<int, int>> code_table = std::vector<std::pair<int, int>>(128);
+        void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, int code, int length);
 
     public:
         HuffmanTree(std::vector<int> char_counts);
         std::shared_ptr<HuffmanNode> getRoot();
-        std::vector<std::vector<bool>> getCodes();
+        std::vector<std::pair<int, int>> getCodes();
 
 };

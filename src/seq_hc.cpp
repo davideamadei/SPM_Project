@@ -81,6 +81,11 @@ int main(int argc, char* argv[]){
 
     }
 
+    for(int i=0;i<file_str.size();i++){
+        if(file_str[i]<0){
+            cout<<int(file_str[i])<<endl;
+            }
+    }
     clog << 10 << ", " << "LF" << ", " << count_vector[10] << endl;
     clog << 13 << ", " << "CR" << ", " << count_vector[13] << endl;
 
@@ -100,48 +105,59 @@ int main(int argc, char* argv[]){
 
     auto code_table = ht.getCodes();
 
-    // for(int i = 0; i<code_table->size(); i++){
-    //     cout<<char(i) << ", " << count_vector[i] << ", " << std::bitset<32>((*code_table)[i]) << endl;
-    // }
-    for(int i = 0; i<code_table.size(); i++){
-        clog<<char(i) << ", " << count_vector[i] << ", ";
-        auto code = code_table[i];
-        for(int j=0; j<code.size(); j++){
-            clog << code[j];
-        }
-        clog<<endl;
-    }
-    // }
-    // cout<<"Tree creation and code extraction took " << tree_timer << " usecs" << endl;
-
-
-    string encoded_string = "01010100010";
-
-
-    cout<< "File is " << encoded_string.size() << " characters long" <<endl;
-
-
-    std::ofstream encoded_file("encoded_"+filename, std::ios::binary);
-
+    vector<char> buffer_vec;
+    int buf_len = 0;
     char buffer = 0;
-    int i = 0;
-    for(int j=0; j<encoded_string.size(); j++){
-        if(i==8){
-            encoded_file.write(&buffer, 1);
-            buffer = 0;
-            i = 0;
+    int remaining;
+    int length;
+    int code;
+    int max_size = sizeof(char) * 8;
+    for(int i=0; i<file_str.size(); i++){
+        // cout<<i << " " << file_str[i]<<endl;
+        auto code_pair = code_table[file_str[i]];
+        length = code_pair.first;
+        code = code_pair.second;
+        remaining = length;
+        while(remaining != 0){
+            if(buf_len==max_size){
+                buffer_vec.push_back(buffer);
+                // output_file.write(&buffer, 1);
+                buffer = 0;
+                buf_len = 0;
+            }
+            if(buf_len+remaining <= max_size){
+                buffer = (buffer << remaining) | code;
+                buf_len += remaining;
+                remaining = 0;
+            }
+            // i + remaining >= max_size
+            else{
+                int shift = max_size-buf_len;
+                buffer = (buffer << shift) | (code >> (remaining - shift));
+                remaining -= shift;
+                buf_len = max_size;
+            }
         }
-        char bit = encoded_string[j];
-        if(bit == '0'){
-            buffer = buffer << 1; 
-        }
-        else{
-            buffer = (buffer << 1) + 1; 
-        }
-        i++;
+        
     }
-    if(i!=0){
-        buffer = buffer << (8-i);
-        encoded_file.write(&buffer, 1);
+
+    if(buf_len!=0){
+        buffer_vec.push_back(buffer << (max_size-buf_len));
+        // buffer = buffer << (8-i);
+        // output_file.write(&buffer, 1);
     }
+
+    cout<< "File is " << file_str.size() << " characters long" <<endl;
+
+
+    std::ofstream output_file("encoded_"+filename, std::ios::binary);
+
+
+    long timer;
+    {
+        utimer to("test", &timer);
+    
+    output_file.write(buffer_vec.data(), buffer_vec.size());
+    }
+    cout<<timer<<endl;
 }
