@@ -8,7 +8,7 @@
 
 #include "utimer.hpp"
 #include "utils.hpp"
-#include "huffman_node_class.hpp"
+#include "huffman_tree.hpp"
 
 using std::cout, std::clog, std::endl, std::thread, std::vector, std::function, std::async, std::string;
 
@@ -17,70 +17,19 @@ int current_threads = 0;
 std::mutex t_mutex;
 
 
-std::shared_ptr<HuffmanNode> min_node(std::queue<std::shared_ptr<HuffmanNode>> * q1, std::queue<std::shared_ptr<HuffmanNode>> * q2){
-    if(q1->empty()){
-        auto min = (q2->front());
-        q2->pop();
-        return min;
-    }
-
-    if(q2->empty()){
-        auto min = (q1->front());
-        q1->pop();
-        return min;
-    }
-
-    if(q1->front()->getFrequency() < q2->front()->getFrequency()){
-        auto min = (q1->front());
-        q1->pop();
-        return min;
-    }
-    else{
-        auto min = (q2->front());
-        q2->pop();
-        return min;
-    }
-}
-
-std::shared_ptr<HuffmanNode> createHuffmanTree(std::queue<std::shared_ptr<HuffmanNode>> * leaf_queue){
-    std::queue<std::shared_ptr<HuffmanNode>> comp_queue;
-    std::shared_ptr<HuffmanNode> min = nullptr;
-    std::shared_ptr<HuffmanNode> second_min = nullptr;
-    while(leaf_queue->size() + comp_queue.size() > 1){
-
-        min = min_node(leaf_queue, &comp_queue);
-        second_min = min_node(leaf_queue, &comp_queue);
-
-        clog << min->getFrequency() << endl;
-        clog << second_min->getFrequency() << endl;
-        std::shared_ptr<HuffmanNode> new_node(new HuffmanNode(0, min->getFrequency()+second_min->getFrequency()));
-
-        new_node->setLeftChild(min);
-        new_node->setRightChild(second_min);
-        // min->setParent(new_node);
-        // second_min->setParent(new_node);
-
-        comp_queue.push(new_node);
-    }
-
-    if(comp_queue.empty()){
-        return leaf_queue->front();
-    }
-    else{
-        return comp_queue.front();
-    }
-}
-
-void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, string current_code, std::shared_ptr<vector<string>> code_table){
+void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, vector<bool> current_code,
+                        std::shared_ptr<vector<vector<bool>>> code_table){
 
     // base case, a node has no children
     if(huffman_tree->getLeftChild()==nullptr && huffman_tree->getRightChild()==nullptr){
-        (*code_table)[int(huffman_tree->getCh())] = current_code;
+        (*code_table)[huffman_tree->getCh()] = current_code;
         return;
     }
 
-    string left_code = current_code+"0";
-    string right_code = current_code+"1";
+    vector<bool> left_code = current_code;
+    left_code.push_back(0);
+    vector<bool> right_code = current_code;
+    right_code.push_back(1);
 
     // bitshift to left the given code and add 1 for the right child
     // int left_code = (current_code << 1);
@@ -92,11 +41,13 @@ void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, string current
     return;
 }
 
-std::shared_ptr<vector<string>> extract_codes(std::shared_ptr<HuffmanNode> huffman_tree){
-    std::shared_ptr<vector<string>>code_table(new vector<string>(128, "0"));
+std::shared_ptr<vector<vector<bool>>> extract_codes(std::shared_ptr<HuffmanNode> huffman_tree){
+    std::shared_ptr<vector<vector<bool>>>code_table(new vector<vector<bool>>(128));
 
-    string left_code = "0";
-    string right_code = "1";
+    vector<bool> left_code;
+    left_code.push_back(0);
+    vector<bool> right_code;
+    right_code.push_back(1);
     
     extract_codes_rec(huffman_tree->getLeftChild(), left_code, code_table);
     extract_codes_rec(huffman_tree->getRightChild(), right_code, code_table);
@@ -115,12 +66,18 @@ int main(int argc, char* argv[]){
     // read filename from argument
     string filename = argv[1];
 
+    std::ifstream file(filename);
+
+    std::stringstream file_buffer;
+    file_buffer << file.rdbuf();
+    string file_str = file_buffer.str();
+
     vector<int> count_vector;
     long u_vector;
     {
         utimer t0("array", &u_vector);
         
-        count_vector = read_file(filename);
+        count_vector = count_characters(file_str);
 
     }
 
@@ -137,41 +94,30 @@ int main(int argc, char* argv[]){
     // long tree_timer;
     // {
     //     utimer t0("tree_code", &tree_timer);
-    vector<std::shared_ptr<HuffmanNode>> ht_leaves;
-    for(int i=0; i<128; i++){
-        if(count_vector[i] != 0){
-            auto tmp = std::shared_ptr<HuffmanNode>(new HuffmanNode(i, count_vector[i]));
-            ht_leaves.push_back(tmp);
-        }
-    }
+    
 
-    auto compare_node = [](std::shared_ptr<HuffmanNode> n1, std::shared_ptr<HuffmanNode> n2) 
-                        {return n1->getFrequency() < n2->getFrequency();};
-    sort(ht_leaves.begin(), ht_leaves.end(), compare_node);
+    HuffmanTree ht(count_vector);
 
-    std::queue<std::shared_ptr<HuffmanNode>> leaf_queue;
-    for(auto &e : ht_leaves){
-        leaf_queue.push(e);
-    }
-
-    std::shared_ptr<HuffmanNode> root = createHuffmanTree(&leaf_queue);
-    std::shared_ptr<vector<string>>code_table = extract_codes(root);
+    auto code_table = ht.getCodes();
 
     // for(int i = 0; i<code_table->size(); i++){
     //     cout<<char(i) << ", " << count_vector[i] << ", " << std::bitset<32>((*code_table)[i]) << endl;
     // }
-    for(int i = 0; i<code_table->size(); i++){
-        clog<<char(i) << ", " << count_vector[i] << ", " << (*code_table)[i] << endl;
+    for(int i = 0; i<code_table.size(); i++){
+        clog<<char(i) << ", " << count_vector[i] << ", ";
+        auto code = code_table[i];
+        for(int j=0; j<code.size(); j++){
+            clog << code[j];
+        }
+        clog<<endl;
     }
     // }
     // cout<<"Tree creation and code extraction took " << tree_timer << " usecs" << endl;
 
-    std::ifstream file(filename);
 
-    std::stringstream file_buffer;
-    file_buffer << file.rdbuf();
-    string encoded_string = file_buffer.str();
-    
+    string encoded_string = "01010100010";
+
+
     cout<< "File is " << encoded_string.size() << " characters long" <<endl;
 
 

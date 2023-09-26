@@ -15,18 +15,21 @@ SOURCES=$(shell find . -name $(SRCDIR)/*.cpp)
 TESTSRCS=$(shell find . -name $(TESTDIR)/*.cpp)
 # OBJECTS=$(SOURCES:%.cpp=$(ODIR)/%.o)
 # OBJECTS+=$(TESTDIR:%.cpp=$(ODIR)/%.o)
+# OBJECTS+=$(UTILDIR:%.cpp=$(ODIR)/%.o)
+# OBJECTS+=$(HTDIR:%.cpp=$(ODIR)/%.o)
+
 
 .DEFAULT_GOAL := all
 .PHONY : all
 
-LIBS = $(UTILDIR)/utimer.hpp $(UTILDIR)/utils.hpp $(HTDIR)/huffman_node_class.hpp
+LIBS = $(UTILDIR)/utimer.hpp $(UTILDIR)/utils.hpp $(HTDIR)/huffman_tree.hpp
 
 all: $(EXEDIR)/seq_hc.out 
 
 test: $(EXEDIR)/read_test.out
 
-$(EXEDIR)/seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/utils.o $(HTDIR)/huffman_node_class.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(HTDIR)/huffman_node_class.o
+$(EXEDIR)/seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(UTILDIR)/utils.o $(HTDIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(UTILDIR)/utils.o  $(HTDIR)/huffman_tree.o
 
 $(EXEDIR)/read_test.out: $(TESTDIR)/read_test.cpp $(LIBS)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o "$(EXEDIR)/$@" $<

@@ -23,4 +23,4 @@ void print_vector_pair(std::map<T1, T2> vec){
     return;
 }
 
-std::vector<int> read_file(std::string filename);
+std::vector<int> count_characters(std::string file);
