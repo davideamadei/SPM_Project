@@ -6,14 +6,13 @@ BUILDDIR = ./
 SRCDIR = ./src
 TESTDIR = ./test
 ODIR = ./obj
-UTILDIR = ./src/utils
-HTDIR = ./src/huffman_tree
+UTILDIR = ./src/classes
 
 
 .DEFAULT_GOAL := all
 .PHONY : all
 
-LIBS = $(UTILDIR)/utimer.hpp $(UTILDIR)/utils.hpp $(HTDIR)/huffman_tree.hpp
+LIBS = $(UTILDIR)/logger.hpp $(UTILDIR)/huffman_tree.hpp
 
 all: seq_hc.out decode_test.out
 
@@ -34,26 +33,26 @@ test: all
 	diff commedia.txt decoded-commedia.txt
 
 
-seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/utils.o $(ODIR)/huffman_tree.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(ODIR)/huffman_tree.o
+seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
-decode_test.out: $(ODIR)/decode_test.o $(LIBS) $(ODIR)/utils.o $(ODIR)/huffman_tree.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $< $(ODIR)/utils.o  $(ODIR)/huffman_tree.o
+decode_test.out: $(ODIR)/decode_test.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
 # $(ODIR)/seq_hc.o : $(SRCDIR)/seq_hc.cpp
 # 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
 
 $(ODIR)/%.o: $(TESTDIR)/%.cpp
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $<
 	
 $(ODIR)/%.o: $(SRCDIR)/%.cpp
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $<
 
 $(ODIR)/%.o: $(UTILDIR)/%.cpp
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $<
 
 $(ODIR)/%.o: $(HTDIR)/%.cpp
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -o $@ $<
 
 %.out: $(ODIR)/%.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -o $@ $<
