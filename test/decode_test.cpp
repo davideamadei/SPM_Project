@@ -36,7 +36,7 @@ int main(int argc, char* argv[]){
 
         input_file.read(&padding, sizeof(padding));
 
-        int real_size = chunk_size*8 - padding;
+        int bitsize = chunk_size*8 - padding;
 
         std::vector<char> buffer_vec(chunk_size);
         for(auto &buf : buffer_vec){
@@ -44,20 +44,19 @@ int main(int argc, char* argv[]){
         }      
 
         char ch;
-        int buf_shift = 7;
         auto current_node = ht.getRoot();
         int maxsize = sizeof(char) *8;
         int counter = 0;
         int branch;
+
         for(auto &buf : buffer_vec){
-            buf_shift = 7; 
-            for(int j=0; j<maxsize; j++){
+            for(int buf_shift=7; buf_shift>=0; buf_shift--){
                 if(current_node->getLeftChild()==nullptr){
                     ch = current_node->getCh();
                     output_file.write(&ch, 1);
                     current_node = ht.getRoot();
                 }
-                if(counter == real_size){
+                if(counter == bitsize){
                     return 0;
                 }
                 if(((buf >> buf_shift) & 1)){
@@ -66,9 +65,13 @@ int main(int argc, char* argv[]){
                 else{
                     current_node = current_node->getLeftChild();
                 }
-                buf_shift--;
                 counter++;
             }
+        }
+        if(current_node->getLeftChild()==nullptr){
+            ch = current_node->getCh();
+            output_file.write(&ch, 1);
+            current_node = ht.getRoot();
         }
         
     }

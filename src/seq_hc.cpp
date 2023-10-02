@@ -11,15 +11,55 @@
 
 using std::cout, std::clog, std::endl, std::string;
 
+void print_help(){
+    cout << "The program accepts the following arguments:" << endl;
+    cout << "\t -i path: path to the file to be encoded, required." << endl;
+    cout << "\t -o path: path where the encoded file has to be saved, required." << endl;
+    cout << "\t -n number: number of times to run the program, default 1." << endl;
+    cout << "\t -v: set verbose." << endl;
+    cout << "\t -l: enable logging to file" << endl;
+}
+
 int main(int argc, char* argv[]){
 
-    // read filename from argument
-    string filename = argv[1];
-    string output_filename = argv[2];
-    int n_times = atoi(argv[3]);
-    int verbose = 0;
-    if(argc > 3){
-        verbose = atoi(argv[4]);
+    string filename = "";
+    string output_filename = "";
+    int n_times = 1;
+    bool verbose = false;
+    bool logs = false;
+
+    int opt;
+
+    while ((opt = getopt(argc, argv, "hi:o:n:vl")) != -1) {
+        switch (opt) {
+        case 'h':
+            print_help();
+            return 1;
+        case 'i':
+            filename = optarg;
+            break;
+        case 'o':
+            output_filename = optarg;
+            break;
+        case 'n':
+            n_times = atoi(optarg);
+            break;
+        case 'v':
+            verbose = true;
+            break;
+        case 'l':
+            logs = true;
+            break;
+        default:
+            print_help();
+            return 0;
+        }
+    }
+
+    if((filename == "") || (output_filename == "")){
+        cout << "Input and output filenames are required." << endl;
+        print_help();
+        return 0;
     }
 
     string log_file = "seq_logs_" + filename;
@@ -33,15 +73,18 @@ int main(int argc, char* argv[]){
     std::ifstream file(filename);
 
     std::stringstream file_buffer;
-    
+    string file_str;
+
     logger.start("reading_input");
+
+  
     file_buffer << file.rdbuf();
     elapsed_time = logger.stop();
-    if(verbose >= 1){
+    if(verbose){
         cout << "Reading input file took " << elapsed_time << " usecs." << endl;
     }   
-
-    string file_str = file_buffer.str();
+    file.close();
+    file_str = file_buffer.str();
 
     char ch;
 
@@ -55,30 +98,34 @@ int main(int argc, char* argv[]){
         count_vector[file_str[i]]++;
     }
     elapsed_time = logger.stop();
-    if(verbose >= 1){
+    if(verbose){
         cout << "Gathering character frequency took " << elapsed_time << " usecs." << endl;
-        }
-
-    if(verbose == 2){
-        clog << 10 << ", " << "LF" << ", " << count_vector[10] << endl;
-        clog << 13 << ", " << "CR" << ", " << count_vector[13] << endl;
-
-        // print character counts
-        for(int i=32; i<127; i++){
-            clog << i << ", " << char(i) << ", " << count_vector[i] << endl;
-        }
     }
+
+
+
+    // if(verbose){
+    //     cout << endl;
+
+    //     clog << 10 << ", " << "LF" << ", " << count_vector[10] << endl;
+    //     clog << 13 << ", " << "CR" << ", " << count_vector[13] << endl;
+
+    //     // print character counts
+    //     for(int i=32; i<127; i++){
+    //         clog << i << ", " << char(i) << ", " << count_vector[i] << endl;
+    //     }
+    //     cout << endl;
+    // }
     
 
     logger.start("huffman_tree_creation");
     HuffmanTree ht(count_vector);
     elapsed_time = logger.stop();
-    if(verbose >= 1){
+    if(verbose){
         cout << "Creating the Huffman tree and extracting the code table took " << elapsed_time << " usecs." << endl;
     }
 
     auto code_table = ht.getCodes();
-
 
     std::vector<char> buffer_vec;
     int buf_len = 0;
@@ -121,19 +168,16 @@ int main(int argc, char* argv[]){
 
     if(buf_len!=0){
         buffer_vec.push_back(buffer << (max_size-buf_len));
-        // buffer = buffer << (8-i);
-        // output_file.write(&buffer, 1);
     }
 
     elapsed_time = logger.stop();
-    if(verbose >= 1){
+    if(verbose){
         cout << "Encoding the file took " << elapsed_time << " usecs." << endl;
     }
     
     char ending_padding = max_size - buf_len;
 
     int chunk_byte_size = buffer_vec.size();
-
 
     std::ofstream output_file(output_filename, std::ios::binary);
 
@@ -148,17 +192,19 @@ int main(int argc, char* argv[]){
     output_file.write(&ending_padding, 1);
     output_file.write(buffer_vec.data(), buffer_vec.size());
     elapsed_time = logger.stop();
-    if(verbose >= 1){
+    if(verbose){
         cout << "Writing encoded file took " << elapsed_time << " usecs." << endl;
     }
 
-    if(verbose >=1){
+    if(verbose){
         cout << "File is " << file_str.size() << " characters long" <<endl;
-        cout << "Encoded file is " << chunk_byte_size << " bits" << endl;
+        cout << "Encoded file is " << chunk_byte_size << " bytes" << endl;
         cout<<endl<<endl;
     }
 
     }
-    logger.write_logs(log_file, n_times);
+    if(logs){
+        logger.write_logs(log_file, n_times);
+    }
     return 0;
 }

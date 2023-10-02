@@ -37,6 +37,7 @@ long Logger::stop(){
 void Logger::write_logs(std::string filename, int n_tries){
     std::ofstream output_file(filename, std::ios::binary);
     double avg;
+    output_file << "stat" << "," << "usecs" << std::endl;
     for(auto &s : cumulative_stats){
         avg = s.second / n_tries;
         output_file << s.first << "," << avg << std::endl;
