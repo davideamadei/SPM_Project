@@ -1,7 +1,7 @@
 /**
  * @file seq_hc.cpp
  * @author Davide Amadei (davide.amadei97@gmail.com)
- * @brief file containing the sequential version of the huffman encoding
+ * @brief file containing the parallel version of the huffman encoding using native c++ threads
  * @date 2023-10-04
  * 
  * Supports running multiple times for logging purposes 
@@ -24,6 +24,7 @@ void print_help(){
     cout << "\t -i path: path to the file to be encoded, required." << endl;
     cout << "\t -o path: path where the encoded file has to be saved, required." << endl;
     cout << "\t -n number: number of times to run the program, default 1." << endl;
+    cout << "\t -t number: number of threads to use, default 4." << endl;
     cout << "\t -v: set verbose." << endl;
     cout << "\t -l: enable logging to file" << endl;
 }
@@ -33,6 +34,7 @@ int main(int argc, char* argv[]){
     string filename = "";
     string output_filename = "";
     int n_times = 1;
+    int n_threads = 4;
     bool verbose = false;
     bool logs = false;
 
@@ -52,6 +54,9 @@ int main(int argc, char* argv[]){
             break;
         case 'n':
             n_times = atoi(optarg);
+            break;
+        case 't':
+            n_threads = atoi(optarg);
             break;
         case 'v':
             verbose = true;
@@ -87,12 +92,21 @@ int main(int argc, char* argv[]){
         int filesize = std::filesystem::file_size(filename);
 
         // buffer to store the file
-        std::vector<char> file_str;
-        file_str.resize(filesize);
+        std::vector<std::vector<char>> file_chunks(n_threads);
 
         // read file
+        int chunk_size = filesize / n_threads;
         logger.start("reading_input");
-            file.read(&file_str[0], filesize);
+            for(int i=0; i<n_threads; i++){
+                if(i==n_threads-1){
+                    file_chunks[i].resize(chunk_size + filesize % n_threads);
+                    file.read(&(file_chunks[i])[0], chunk_size + filesize % n_threads);
+                }
+                else{
+                    file_chunks[i].resize(chunk_size);
+                    file.read(&(file_chunks[i])[0], chunk_size);
+                }
+            }
             file.close();
 
         elapsed_time = logger.stop();
@@ -108,9 +122,11 @@ int main(int argc, char* argv[]){
         std::vector<int> count_vector(128);
 
         logger.start("character_frequency_gathering");
-            for(int i=0; i<file_str.size(); i++)
-            {
-                count_vector[file_str[i]]++;
+            for(auto &c : file_chunks){
+                for(int i=0; i<c.size(); i++)
+                {
+                    count_vector[c[i]]++;
+                }
             }
         elapsed_time = logger.stop();
 
@@ -162,8 +178,9 @@ int main(int argc, char* argv[]){
         // actual encoding of the file
         // encoding is stored into a vector of chars
         logger.start("encoding");
-            for(int i=0; i<file_str.size(); i++){
-                auto code_pair = code_table[file_str[i]];
+        for(auto &c : file_chunks){
+            for(int i=0; i<c.size(); i++){
+                auto code_pair = code_table[c[i]];
                 code = code_pair.second;
                 remaining = code_pair.first;;
 
@@ -198,7 +215,7 @@ int main(int argc, char* argv[]){
                 }
                 
             }
-
+        }
             // flush buffer if necessary and add padding bits to the end
             if(buf_len!=0){
                 buffer_vec.push_back(buffer << (max_size-buf_len));
@@ -240,11 +257,11 @@ int main(int argc, char* argv[]){
         }
 
         if(verbose){
-            cout << "File is " << file_str.size() << " characters long" <<endl;
+            cout << "File is " << file_chunks.size() << " characters long" <<endl;
             cout << "Encoded file is " << chunk_byte_size << " bytes" << endl;
             cout<<endl<<endl;
         }
-
+        
     }
     if(logs){
         std::filesystem::create_directory("./logs");
