@@ -1,3 +1,11 @@
+/**
+ * @file decode_test.cpp
+ * @author Davide Amadei (davide.amadei97@gmail.com)
+ * @brief file containing code to decode a file encoded with huffman
+ * @date 2023-10-04
+ * 
+ * Rough implementation, only for testing purposes. Can be very slow with larger files 
+ */
 #include <iostream>
 #include <vector>
 #include <string>

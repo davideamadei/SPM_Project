@@ -58,11 +58,14 @@ download_txt: commedia.txt war-and-peace.txt
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > war-and-peace.txt
 	rm tmp.txt
 
+docs:
+	doxygen DOXYGEN
+
 clean:
 	rm -rf $(ODIR)/*.o
 
 cleaner: clean
-	rm -rf *.out *.dat decoded*
+	rm -rf *.out *.dat decoded* html/* latex/*
 
 # does not actually work, just used to store command
 create_large_test:
