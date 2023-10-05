@@ -58,5 +58,7 @@ class Logger{
     public:
         void write_logs(std::string filename, int n_tries);
         void start(std::string stat_name);
+        void add_stat(std::string stat_name, long time);
         long stop();
+
 };

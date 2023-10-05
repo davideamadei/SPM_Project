@@ -11,7 +11,6 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
-#include <bitset>
 #include <bits/stdc++.h>
 
 #include "logger.hpp"
@@ -88,24 +87,22 @@ int main(int argc, char* argv[]){
 
         // buffer to store the file
         std::vector<char> file_str;
-        file_str.resize(filesize);
 
         // read file
         logger.start("reading_input");
+            file_str.resize(filesize);
             file.read(&file_str[0], filesize);
-            file.close();
-
         elapsed_time = logger.stop();
+
+        file.close();
 
         if(verbose){
             cout << "Reading input file took " << elapsed_time << " usecs." << endl;
         }
 
-        char ch;
-
         // use array to store character counts
         // can be directly indexed using ASCII characters
-        std::vector<int> count_vector(128);
+        std::vector<int> count_vector(128, 0);
 
         logger.start("character_frequency_gathering");
             for(int i=0; i<file_str.size(); i++)

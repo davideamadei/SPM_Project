@@ -11,7 +11,7 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
-#include <bitset>
+#include <future>
 #include <bits/stdc++.h>
 
 #include "logger.hpp"
@@ -29,6 +29,11 @@ void print_help(){
     cout << "\t -l: enable logging to file" << endl;
 }
 
+// std::pair<char, long> encode_chunk(std::vector<std::pair<int,int>> code_table, std::vector<char> file_chunk){
+//     Timer timer;
+
+// }
+
 int main(int argc, char* argv[]){
 
     string filename = "";
@@ -41,7 +46,7 @@ int main(int argc, char* argv[]){
     // parse command line arguments
     int opt;
 
-    while ((opt = getopt(argc, argv, "hi:o:n:vl")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:o:n:t:vl")) != -1) {
         switch (opt) {
         case 'h':
             print_help();
@@ -76,7 +81,7 @@ int main(int argc, char* argv[]){
         return 0;
     }
 
-    string log_file = "./logs/seq/" + filename;
+    string log_file = "./logs/par/" + std::to_string(n_threads) + "_" + filename;
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
     Logger logger;
@@ -91,13 +96,36 @@ int main(int argc, char* argv[]){
 
         int filesize = std::filesystem::file_size(filename);
 
-        // buffer to store the file
+        // vector of buffers to store the file in chunks
         std::vector<std::vector<char>> file_chunks(n_threads);
-
-        // read file
         int chunk_size = filesize / n_threads;
-        logger.start("reading_input");
+
+        // vector of vectors storing partial character counts
+        std::vector<std::vector<int>> partial_counts(n_threads, std::vector<int>(128, 0));
+
+        // vector storing thread ids
+        std::vector<std::future<long>> count_tids;
+
+        // function acting as body of thread to count characters of a chunk of file
+        auto count_chars = [&partial_counts, &file_chunks](int tid){
+            Timer timer;
+            timer.start("freq_time");
+            // auto chunk = file_chunks[tid];
+            // auto count_vector = &partial_counts[tid];
+            for(int i=0; i<file_chunks[tid].size(); i++){
+                partial_counts[tid][file_chunks[tid][i]]++;
+            }
+            return timer.stop();
+        };
+
+        Timer timer;
+        // time to read file, including the resizing of the buffer
+        long read_time = 0;
+        long freq_thread_overhead = 0;
+        // read file
+        logger.start("read_and_count");
             for(int i=0; i<n_threads; i++){
+                timer.start("reading_input");
                 if(i==n_threads-1){
                     file_chunks[i].resize(chunk_size + filesize % n_threads);
                     file.read(&(file_chunks[i])[0], chunk_size + filesize % n_threads);
@@ -106,34 +134,47 @@ int main(int argc, char* argv[]){
                     file_chunks[i].resize(chunk_size);
                     file.read(&(file_chunks[i])[0], chunk_size);
                 }
+                read_time += timer.stop();
+
+                timer.start("freq_thread_overhead");
+                count_tids.push_back(move(std::async(std::launch::async, count_chars, i)));
+                freq_thread_overhead += timer.stop();
             }
             file.close();
 
-        elapsed_time = logger.stop();
+            long freq_time = 0;
+            for(auto &t : count_tids){
+                freq_time += t.get();
+            }
 
-        if(verbose){
-            cout << "Reading input file took " << elapsed_time << " usecs." << endl;
-        }
+            // use array to store character counts
+            // can be directly indexed using ASCII characters
+            std::vector<int> count_vector(128, 0);
 
-        char ch;
-
-        // use array to store character counts
-        // can be directly indexed using ASCII characters
-        std::vector<int> count_vector(128);
-
-        logger.start("character_frequency_gathering");
-            for(auto &c : file_chunks){
+            timer.start("freq_join_overhead");
+            for(auto &c : partial_counts){
                 for(int i=0; i<c.size(); i++)
                 {
-                    count_vector[c[i]]++;
+                    count_vector[i] += c[i];
                 }
             }
+            long freq_join_overhead = timer.stop();
+            
         elapsed_time = logger.stop();
+        
+        logger.add_stat("freq_thread_overhead", freq_thread_overhead);
+        logger.add_stat("reading_input", read_time);
+        logger.add_stat("freq_time", freq_time);
+        logger.add_stat("freq_join_overhead", freq_join_overhead);
 
         if(verbose){
-            cout << "Gathering character frequency took " << elapsed_time << " usecs." << endl;
+            cout << "Reading input and counting character frequency took " << elapsed_time << " real usecs." << endl;
+            cout << "Reading input took " << read_time << " usecs." << endl;
+            cout << "Counting characters took " << freq_time << " usecs in overall computation time between threads." << endl;
+            cout << "Overhead for starting threads for frequency gathering was " << freq_thread_overhead << " usecs." << endl;
+            cout << "Joining partial frequency counts took " << freq_join_overhead << " usecs." << endl;
         }
-
+        
 
         // if(verbose){
         //     cout << endl;
@@ -257,15 +298,15 @@ int main(int argc, char* argv[]){
         }
 
         if(verbose){
-            cout << "File is " << file_chunks.size() << " characters long" <<endl;
-            cout << "Encoded file is " << chunk_byte_size << " bytes" << endl;
+            cout << "Input file is " << filesize/8 << " bytes long" <<endl;
+            cout << "Encoded file is " << chunk_byte_size << " bytes long" << endl;
             cout<<endl<<endl;
         }
         
     }
     if(logs){
         std::filesystem::create_directory("./logs");
-        std::filesystem::create_directory("./logs/seq");
+        std::filesystem::create_directory("./logs/par");
         logger.write_logs(log_file, n_times);
     }
     return 0;

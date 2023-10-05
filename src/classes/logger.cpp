@@ -69,6 +69,22 @@ long Logger::stop(){
 }
 
 /**
+ * @brief method to add a stat manually to the logger
+ * 
+ * @param stat_name name of the stat to add
+ * @param time amount of time for the stat to be inserted
+ */
+void Logger::add_stat(std::string stat_name, long time){
+    if(cumulative_stats.contains(stat_name)){
+        cumulative_stats[stat_name] += time;
+    }
+    else{
+        cumulative_stats[stat_name] = time;
+    }
+    return;
+}
+
+/**
  * @brief function to write logs to file
  * 
  * @param filename file in which to save the logs (will be ovewritten with each write)
