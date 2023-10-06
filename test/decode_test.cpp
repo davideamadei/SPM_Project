@@ -35,11 +35,11 @@ int main(int argc, char* argv[]){
     HuffmanTree ht = HuffmanTree(count_vector);
     std::ofstream output_file(output_filename, std::ios::binary);
 
+
     for(int i=0; i<n_chunks; i++){
 
         int chunk_size;
         char padding;
-
         input_file.read(reinterpret_cast<char *>(&chunk_size), sizeof(chunk_size));
 
         input_file.read(&padding, sizeof(padding));
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]){
                     current_node = ht.getRoot();
                 }
                 if(counter == bitsize){
-                    return 0;
+                    continue;
                 }
                 if(((buf >> buf_shift) & 1)){
                     current_node = current_node->getRightChild();
@@ -83,5 +83,4 @@ int main(int argc, char* argv[]){
         }
         
     }
-
 }

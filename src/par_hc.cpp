@@ -19,6 +19,12 @@
 
 using std::cout, std::clog, std::endl, std::string;
 
+typedef struct{
+    long time;
+    char padding;
+    std::shared_ptr<std::vector<char>> encoded_chunk;
+} encoding_results;
+
 void print_help(){
     cout << "The program accepts the following arguments:" << endl;
     cout << "\t -i path: path to the file to be encoded, required." << endl;
@@ -29,10 +35,69 @@ void print_help(){
     cout << "\t -l: enable logging to file" << endl;
 }
 
-// std::pair<char, long> encode_chunk(std::vector<std::pair<int,int>> code_table, std::vector<char> file_chunk){
-//     Timer timer;
+encoding_results encode_chunk(std::vector<std::pair<int,int>> &code_table, std::vector<char> &file_chunk){
+    Timer timer;
+    timer.start("encode");
+    std::shared_ptr<std::vector<char>> buffer_vec (new std::vector<char>);
+    // current size of the buffer
+    int buf_len = 0;
+    char buffer = 0;
+    // remaining bits to save to buffer for currently considered character
+    // is initialized with the length of the encoding for each character
+    int remaining;
+    // code of the character, stored as an int
+    int code;
+    // size of a single buffer
+    int max_size = sizeof(char) * 8;
 
-// }
+    // actual encoding of the file
+    // encoding is stored into a vector of chars
+    for(auto &c : file_chunk){
+        auto code_pair = code_table[c];
+        code = code_pair.second;
+        remaining = code_pair.first;;
+
+        // loop saving the encoding of the character to the buffer
+        while(remaining != 0){
+            // buffer has reached maximum size
+            if(buf_len==max_size){
+                // flush buffer to vector
+                buffer_vec->push_back(buffer);
+                // reset buffer
+                buffer = 0;
+                buf_len = 0;
+            }
+            // buffer has enough space to store the rest of the encoding
+            // of the current character
+            if(buf_len+remaining <= max_size){
+                // shift buffer and add code to the end
+                buffer = (buffer << remaining) | code;
+                //update buffer size
+                buf_len += remaining;
+                remaining = 0;
+            }
+            // buffer does not have enough space to store the rest of the encoding
+            // of the current character 
+            else{
+                int shift = max_size-buf_len;
+                // shift buffer to left and shift encoding to right
+                buffer = (buffer << shift) | (code >> (remaining - shift));
+                remaining -= shift;
+                buf_len = max_size;
+            }
+        }
+    }
+    // flush buffer if necessary and add padding bits to the end
+    if(buf_len!=0){
+        buffer_vec->push_back(buffer << (max_size-buf_len));
+    }
+    long time = timer.stop();
+    encoding_results res;
+    res.time = time;
+    res.padding = max_size-buf_len;
+    res.encoded_chunk = buffer_vec;
+    return res;
+}
 
 int main(int argc, char* argv[]){
 
@@ -85,10 +150,13 @@ int main(int argc, char* argv[]){
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
     Logger logger;
+    Timer timer;
     long elapsed_time; 
+    Timer tot_timer;
 
     // loop n_times
     for(int i = 0; i < n_times; i++){
+        tot_timer.start("total");
         std::ifstream file(filename);
 
         std::stringstream file_buffer;
@@ -118,7 +186,6 @@ int main(int argc, char* argv[]){
             return timer.stop();
         };
 
-        Timer timer;
         // time to read file, including the resizing of the buffer
         long read_time = 0;
         long freq_thread_overhead = 0;
@@ -175,20 +242,6 @@ int main(int argc, char* argv[]){
             cout << "Joining partial frequency counts took " << freq_join_overhead << " usecs." << endl;
         }
         
-
-        // if(verbose){
-        //     cout << endl;
-
-        //     clog << 10 << ", " << "LF" << ", " << count_vector[10] << endl;
-        //     clog << 13 << ", " << "CR" << ", " << count_vector[13] << endl;
-
-        //     // print character counts
-        //     for(int i=32; i<127; i++){
-        //         clog << i << ", " << char(i) << ", " << count_vector[i] << endl;
-        //     }
-        //     cout << endl;
-        // }
-        
         // create the huffman tree and table of encodings
         logger.start("huffman_tree_creation");
             HuffmanTree ht(count_vector);
@@ -200,109 +253,64 @@ int main(int argc, char* argv[]){
 
         auto code_table = ht.getCodes();
 
+        long encode_time = 0;
+        long write_time = 0;
+        // encode and write to file in chunks
+        logger.start("encode_and_write");
 
-        std::vector<char> buffer_vec;
-        // current size of the buffer
-        int buf_len = 0;
-        char buffer = 0;
-        // remaining bits to save to buffer for currently considered character
-        // is initialized with the length of the encoding for each character
-        int remaining;
-        // code of the character, stored as an int
-        int code;
-        // size of a single buffer
-        int max_size = sizeof(char) * 8;
+            std::vector<std::future<encoding_results>> encode_tids;
+            
+            timer.start("encode_thread_overhead");
+            for(int i=0; i<n_threads; i++){
+                encode_tids.push_back(move(std::async(std::launch::async, encode_chunk,
+                                             std::ref(code_table), std::ref(file_chunks[i]))));
+            }
+            long encode_thread_overhead = timer.stop();
 
-        // there for consistency with parallel version
-        int n_chunks = 1;
-
-        // actual encoding of the file
-        // encoding is stored into a vector of chars
-        logger.start("encoding");
-        for(auto &c : file_chunks){
-            for(int i=0; i<c.size(); i++){
-                auto code_pair = code_table[c[i]];
-                code = code_pair.second;
-                remaining = code_pair.first;;
-
-                // loop saving the encoding of the character to the buffer
-                while(remaining != 0){
-                    // buffer has reached maximum size
-                    if(buf_len==max_size){
-                        // flush buffer to vector
-                        buffer_vec.push_back(buffer);
-                        // reset buffer
-                        buffer = 0;
-                        buf_len = 0;
-                    }
-                    // buffer has enough space to store the rest of the encoding
-                    // of the current character
-                    if(buf_len+remaining <= max_size){
-                        // shift buffer and add code to the end
-                        buffer = (buffer << remaining) | code;
-                        //update buffer size
-                        buf_len += remaining;
-                        remaining = 0;
-                    }
-                    // buffer does not have enough space to store the rest of the encoding
-                    // of the current character 
-                    else{
-                        int shift = max_size-buf_len;
-                        // shift buffer to left and shift encoding to right
-                        buffer = (buffer << shift) | (code >> (remaining - shift));
-                        remaining -= shift;
-                        buf_len = max_size;
-                    }
+            timer.start("write");
+                std::ofstream output_file(output_filename, std::ios::binary);  
+                // write number of chunks          
+                output_file.write(reinterpret_cast<const char *>(&n_threads), sizeof(n_threads));
+                // write encoding table
+                // more efficient ways exist
+                for(auto &f : count_vector){
+                    output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
                 }
-                
-            }
-        }
-            // flush buffer if necessary and add padding bits to the end
-            if(buf_len!=0){
-                buffer_vec.push_back(buffer << (max_size-buf_len));
+            write_time += timer.stop();
+
+            for(int i=0; i<n_threads; i++){
+                auto res = encode_tids[i].get();
+                char ending_padding = res.padding;
+                encode_time += res.time;
+                auto buffer = res.encoded_chunk;
+
+                int chunk_size = buffer->size();
+                timer.start("write");
+                // write size of chunk
+                output_file.write(reinterpret_cast<const char *>(&chunk_size), sizeof(chunk_size));
+                // write number of padding bits
+                output_file.write(&ending_padding, 1);
+                // write the encoded binary
+                output_file.write(buffer->data(), buffer->size());
+                write_time += timer.stop();
+
             }
         elapsed_time = logger.stop();
+        logger.add_stat("write", write_time);
+        logger.add_stat("encode", encode_time);
+        logger.add_stat("encode_thread_overhead", encode_thread_overhead);
 
         if(verbose){
-            cout << "Encoding the file took " << elapsed_time << " usecs." << endl;
-        }
-        
-        // number of bits of padding required
-        char ending_padding = max_size - buf_len;
-
-        // number of buffers required to store the encoding
-        int chunk_byte_size = buffer_vec.size();
-
-        std::ofstream output_file(output_filename, std::ios::binary);
-
-        logger.start("writing_output");
-            // write number of chunks
-            output_file.write(reinterpret_cast<const char *>(&n_chunks), sizeof(n_chunks));
-
-            // write encoding table
-            // more efficient ways exist
-            for(auto &f : count_vector){
-                output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
-            }
-
-            // write size of chunk
-            output_file.write(reinterpret_cast<const char *>(&chunk_byte_size), sizeof(chunk_byte_size));
-            // write number of padding bits
-            output_file.write(&ending_padding, 1);
-            // write the encoded binary
-            output_file.write(buffer_vec.data(), buffer_vec.size());
-        elapsed_time = logger.stop();
-
-        if(verbose){
-            cout << "Writing encoded file took " << elapsed_time << " usecs." << endl;
+            cout << "Encoding and writing the file took " << elapsed_time << " usecs." << endl;
+            cout << "Encoding the file took " << encode_time << " usecs." << endl;
+            cout << "Writing encoded file took " << write_time << " usecs." << endl;
         }
 
-        if(verbose){
-            cout << "Input file is " << filesize/8 << " bytes long" <<endl;
-            cout << "Encoded file is " << chunk_byte_size << " bytes long" << endl;
-            cout<<endl<<endl;
-        }
-        
+        // if(verbose){
+        //     cout << "Input file is " << filesize/8 << " bytes long" <<endl;
+        //     cout<<endl<<endl;
+        // }
+        logger.add_stat("total", tot_timer.stop());
     }
     if(logs){
         std::filesystem::create_directory("./logs");

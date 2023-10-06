@@ -86,7 +86,7 @@ int main(int argc, char* argv[]){
         int filesize = std::filesystem::file_size(filename);
 
         // buffer to store the file
-        std::vector<char> file_str;
+        std::vector<char> file_str(filesize);
 
         // read file
         logger.start("reading_input");
@@ -139,8 +139,7 @@ int main(int argc, char* argv[]){
         }
 
         auto code_table = ht.getCodes();
-
-
+        
         std::vector<char> buffer_vec;
         // current size of the buffer
         int buf_len = 0;
@@ -159,8 +158,8 @@ int main(int argc, char* argv[]){
         // actual encoding of the file
         // encoding is stored into a vector of chars
         logger.start("encoding");
-            for(int i=0; i<file_str.size(); i++){
-                auto code_pair = code_table[file_str[i]];
+            for(auto &c : file_str){
+                auto code_pair = code_table[c];
                 code = code_pair.second;
                 remaining = code_pair.first;;
 
