@@ -12,20 +12,16 @@
 #include <fstream>
 #include <filesystem>
 #include <future>
-#include <mutex>
-#include <condition_variable>
+#include <bits/stdc++.h>
 #include "logger.hpp"
 #include "huffman_tree.hpp"
 
 using std::cout, std::clog, std::endl, std::string, std::vector, std::shared_ptr;
 
-std::mutex m;
-std::condition_variable cv;
-int write_id = 0;
-
 typedef struct{
-    long encode_time;
-    long write_time;
+    long time;
+    char padding;
+    shared_ptr<vector<char>> encoded_chunk;
 } encoding_results;
 
 void print_help(){
@@ -38,10 +34,10 @@ void print_help(){
     cout << "\t -l: enable logging to file" << endl;
 }
 
-encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<char> &file_chunk, int id, std::ofstream &output_file){
+encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<char> &file_chunk){
     Timer timer;
     timer.start("encode");
-    vector<char> buffer_vec;
+    shared_ptr<vector<char>> buffer_vec (new vector<char>);
     // current size of the buffer
     int buf_len = 0;
     char buffer = 0;
@@ -65,7 +61,7 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
             // buffer has reached maximum size
             if(buf_len==max_size){
                 // flush buffer to vector
-                buffer_vec.push_back(buffer);
+                buffer_vec->push_back(buffer);
                 // reset buffer
                 buffer = 0;
                 buf_len = 0;
@@ -92,31 +88,13 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
     }
     // flush buffer if necessary and add padding bits to the end
     if(buf_len!=0){
-        buffer_vec.push_back(buffer << (max_size-buf_len));
+        buffer_vec->push_back(buffer << (max_size-buf_len));
     }
     long time = timer.stop();
     encoding_results res;
-    res.encode_time = time;
-    char padding = max_size-buf_len;
-    int chunk_size = buffer_vec.size();
-
-    std::unique_lock lk(m);
-    while(id != write_id){
-        cv.wait(lk);
-    }
-
-    timer.start("write");
-    // write size of chunk
-    output_file.write(reinterpret_cast<const char *>(&chunk_size), sizeof(chunk_size));
-    // write number of padding bits
-    output_file.write(&padding, 1);
-    // write the encoded binary
-    output_file.write(buffer_vec.data(), buffer_vec.size());
-    time = timer.stop();
-
-    res.write_time = time;
-    write_id++;
-    cv.notify_all();
+    res.time = time;
+    res.padding = max_size-buf_len;
+    res.encoded_chunk = buffer_vec;
     return res;
 }
 
@@ -167,7 +145,7 @@ int main(int argc, char* argv[]){
         return 0;
     }
 
-    string log_file = "./logs/par/" + std::to_string(n_threads) + "_" + filename;
+    string log_file = "./logs/par2/" + std::to_string(n_threads) + "_" + filename;
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
     Logger logger;
@@ -178,7 +156,6 @@ int main(int argc, char* argv[]){
     // loop n_times
     for(int i = 0; i < n_times; i++){
         tot_timer.start("total");
-        write_id=0;
         std::ifstream file(filename);
 
         std::stringstream file_buffer;
@@ -233,9 +210,6 @@ int main(int argc, char* argv[]){
             long freq_time = 0;
             for(auto &t : count_tids){
                 freq_time += t.get();
-                
-                // adding this line makes the threads faster for some reason
-                // cout<<endl;
             }
 
             // use array to store character counts
@@ -284,29 +258,40 @@ int main(int argc, char* argv[]){
 
             vector<std::future<encoding_results>> encode_tids;
             
-            timer.start("write");
-            std::ofstream output_file(output_filename, std::ios::binary);  
-            
-            // write number of chunks          
-            output_file.write(reinterpret_cast<const char *>(&n_threads), sizeof(n_threads));
-            // write encoding table
-            // more efficient ways exist
-            for(auto &f : count_vector){
-                output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
-            }
-            write_time += timer.stop();
-
             timer.start("encode_thread_overhead");
             for(int i=0; i<n_threads; i++){
                 encode_tids.push_back(move(std::async(std::launch::async, encode_chunk,
-                                             std::ref(code_table), std::ref(file_chunks[i]), i, std::ref(output_file))));
+                                             std::ref(code_table), std::ref(file_chunks[i]))));
             }
             long encode_thread_overhead = timer.stop();
 
+            timer.start("write");
+                std::ofstream output_file(output_filename, std::ios::binary);  
+                // write number of chunks          
+                output_file.write(reinterpret_cast<const char *>(&n_threads), sizeof(n_threads));
+                // write encoding table
+                // more efficient ways exist
+                for(auto &f : count_vector){
+                    output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
+                }
+            write_time += timer.stop();
+
             for(int i=0; i<n_threads; i++){
                 auto res = encode_tids[i].get();
-                encode_time += res.encode_time;
-                write_time += res.write_time;
+                char ending_padding = res.padding;
+                encode_time += res.time;
+                auto buffer = res.encoded_chunk;
+
+                int chunk_size = buffer->size();
+                timer.start("write");
+                // write size of chunk
+                output_file.write(reinterpret_cast<const char *>(&chunk_size), sizeof(chunk_size));
+                // write number of padding bits
+                output_file.write(&ending_padding, 1);
+                // write the encoded binary
+                output_file.write(buffer->data(), buffer->size());
+                write_time += timer.stop();
+
             }
         elapsed_time = logger.stop();
         logger.add_stat("write", write_time);
@@ -327,7 +312,7 @@ int main(int argc, char* argv[]){
     }
     if(logs){
         std::filesystem::create_directory("./logs");
-        std::filesystem::create_directory("./logs/par");
+        std::filesystem::create_directory("./logs/par2");
         logger.write_logs(log_file, n_times);
     }
     return 0;

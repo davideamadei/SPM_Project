@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++20
-CPPFLAGS = -pthread -O3 -g
+CPPFLAGS = -pthread -O3
 
 BUILDDIR = ./
 SRCDIR = ./src
@@ -24,14 +24,15 @@ seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 par_hc.out: $(ODIR)/par_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
+par_hc2.out: $(ODIR)/par_hc2.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
+
 ff_hc.out : $(ODIR)/ff_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
 decode_test.out: $(ODIR)/decode_test.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
-# $(ODIR)/seq_hc.o : $(SRCDIR)/seq_hc.cpp
-# 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I $(UTILDIR) -I $(HTDIR) -o $@ $<
 
 $(ODIR)/%.o: $(TESTDIR)/%.cpp
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
@@ -45,6 +46,7 @@ $(ODIR)/%.o: $(UTILDIR)/%.cpp
 $(ODIR)/%.o: $(HTDIR)/%.cpp
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
+
 download_txt: commedia.txt war-and-peace.txt
 	wget -O tmp.txt -c https://dmf.unicatt.it/~della/pythoncourse18/commedia.txt
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > commedia.txt
@@ -52,6 +54,7 @@ download_txt: commedia.txt war-and-peace.txt
 	wget -O tmp.txt -c https://raw.githubusercontent.com/mmcky/nyu-econ-370/master/notebooks/data/book-war-and-peace.txt
 	iconv -f UTF-8 -t ASCII//TRANSLIT -c tmp.txt > war-and-peace.txt
 	rm tmp.txt
+
 
 test_seq: all 
 	./seq_hc.out -i war-and-peace.txt -o war-and-peace.dat -v
