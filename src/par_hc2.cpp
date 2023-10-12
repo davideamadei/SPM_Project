@@ -12,7 +12,6 @@
 #include <fstream>
 #include <filesystem>
 #include <future>
-#include <bits/stdc++.h>
 #include "logger.hpp"
 #include "huffman_tree.hpp"
 
@@ -313,7 +312,7 @@ int main(int argc, char* argv[]){
     if(logs){
         std::filesystem::create_directory("./logs");
         std::filesystem::create_directory("./logs/par2");
-        logger.write_logs(log_file, n_times);
+        logger.write_logs(log_file, n_times, n_threads);
     }
     return 0;
 }

@@ -90,10 +90,10 @@ void Logger::add_stat(std::string stat_name, long time){
  * @param filename file in which to save the logs (will be ovewritten with each write)
  * @param n_tries number of times the code was executed. Needed to average the gathered times
  */
-void Logger::write_logs(std::string filename, int n_tries){
+void Logger::write_logs(std::string filename, int n_tries, int n_threads){
     std::ofstream output_file(filename, std::ios::binary);
     double avg;
-    output_file << "stat" << "," << "usecs" << std::endl;
+    output_file << "stat," << n_threads << std::endl;
     for(auto &s : cumulative_stats){
         avg = s.second / n_tries;
         output_file << s.first << "," << avg << std::endl;

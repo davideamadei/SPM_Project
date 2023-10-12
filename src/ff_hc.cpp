@@ -21,8 +21,6 @@
 using std::cout, std::clog, std::endl, std::string, std::vector, std::shared_ptr;
 using namespace ff;
 
-std::mutex m;
-std::condition_variable cv;
 int write_id = 0;
 
 void print_help(){
@@ -35,15 +33,25 @@ void print_help(){
     cout << "\t -l: enable logging to file" << endl;
 }
 
+/**
+ * @brief emitter node for the farm to count characters
+ * 
+ * Reads file in chunks and communicates the current working id to a worker.
+ * File chunks are stored through pointers for easier sharing between threads.
+ * 
+ */
 class Reader : public ff_monode_t<int>{
-public:
+private:
     int n_workers;
     vector<shared_ptr<vector<char>>> file_chunks;
+    shared_ptr<long> read_time;
     string filename;
-    Reader(int n_workers, vector<shared_ptr<vector<char>>> file_chunks, string filename){
+public:
+    Reader(int n_workers, vector<shared_ptr<vector<char>>> file_chunks, string filename, shared_ptr<long> read_time){
         this->filename = filename;
         this->n_workers = n_workers;
         this->file_chunks = file_chunks;
+        this->read_time = read_time;
     }
     int * svc(int * in){
         Timer timer;
@@ -52,27 +60,31 @@ public:
 
         std::stringstream file_buffer;
 
+        // the call to standard library does not work as the code gets
+        // compiled with standard c++11 so this is a replacement
         auto filesize = file.tellg();
         file.seekg( 0, std::ios::end );
         filesize = file.tellg() - filesize;
         file.clear();
         file.seekg(0, std::ios::beg);
 
-        // vector of buffers to store the file in chunks
+        // compute size of a single chunk
         auto chunk_size = filesize / n_workers;
         for(int i=0; i<n_workers; i++){
-            if(i==n_workers-1){
-                file_chunks[i]->resize(chunk_size + filesize % n_workers);
-                file.read(&(*(file_chunks[i]))[0], chunk_size + filesize % n_workers);
-                ff_send_out_to(new int(i), i%n_workers);
-            }
-            else{
+            // all but last chunk 
+            if(i!=n_workers-1){
                 file_chunks[i]->resize(chunk_size);
                 file.read(&(*(file_chunks[i]))[0], chunk_size);
                 ff_send_out(new int(i), i%n_workers);
             }
+            // last chunk
+            else{
+                file_chunks[i]->resize(chunk_size + filesize % n_workers);
+                file.read(&(*(file_chunks[i]))[0], chunk_size + filesize % n_workers);
+                ff_send_out_to(new int(i), i%n_workers);
+            }
         }
-        timer.stop();
+        *read_time = timer.stop();
         file.close();
         return EOS;
     }
@@ -80,23 +92,24 @@ public:
 };
 
 class freqTask : public ff_node_t<int>{
-public:
+private:
     shared_ptr<vector<int>> partial_counts;
     shared_ptr<vector<char>> file_chunk;
-    freqTask(shared_ptr<vector<int>> partial_counts, shared_ptr<vector<char>> file_chunk){
+    shared_ptr<vector<long>> freq_time_vec;
+public:
+    freqTask(shared_ptr<vector<int>> partial_counts, shared_ptr<vector<char>> file_chunk, shared_ptr<vector<long>> freq_time_vec){
         this->partial_counts = partial_counts;
         this->file_chunk = file_chunk;
+        this->freq_time_vec = freq_time_vec;
     }
     int * svc(int * i ){
-        // auto chunk = file_chunks[tid];
-        // auto count_vector = &partial_counts[tid];
         Timer timer;
         timer.start("freq");
         for(int j=0; j<file_chunk->size(); j++){
             (*partial_counts)[(*file_chunk)[j]]++;
         }
+        (*freq_time_vec)[*i] = timer.stop();
         free(i);
-        timer.stop();
         return i;
     }
 
@@ -104,6 +117,9 @@ public:
 
 
 int main(int argc, char* argv[]){
+
+    std::mutex m;
+    std::condition_variable cv;
 
     string filename = "";
     string output_filename = "";
@@ -144,12 +160,15 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // fail if input and output file were not given
     if((filename == "") || (output_filename == "")){
         cout << "Input and output filenames are required." << endl;
         print_help();
         return 0;
     }
 
+    // build path to save logs
+    // assumes input file ends in 3 letter long file format e.g. .txt
     string log_file = "./logs/ff/" + std::to_string(n_threads) + "_" + filename;
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
@@ -158,40 +177,47 @@ int main(int argc, char* argv[]){
     long elapsed_time; 
     Timer tot_timer;
 
-    // loop n_times
+    // loop n_times, for logging purposes mainly
     for(int i = 0; i < n_times; i++){
         tot_timer.start("total");
         write_id=0;
 
-        // vector of vectors storing partial character counts
+        // vector of pointers to vectors storing partial character counts
         vector<shared_ptr<vector<int>>> partial_counts(n_threads);
+        // initialize vectors
         for(int i=0; i<partial_counts.size(); i++){
             partial_counts[i] = std::make_shared<vector<int>>(128);
         }
 
+        // vector to store final character counts
         vector<int> count_vector(128);
         // time to read file, including the resizing of the buffer
-        long read_time = 0;
+        shared_ptr<long> read_time(new long);
 
+        // vector storing the file in chunks
         vector<shared_ptr<vector<char>>> file_chunks(n_threads);
         for(int i=0; i<file_chunks.size(); i++){
             file_chunks[i] = std::make_shared<vector<char>>();
         }
 
+        // vector to store execution times
+        shared_ptr<vector<long>> freq_time_vec (new vector<long>(n_threads));
+
         logger.start("read_and_count");
-            // std::unique_ptr<Reader> read_node = make_unique<Reader>(n_threads, file_chunks, filename);
-            Reader read_node(n_threads, file_chunks, filename);
+            // build and run farm to count characters
+            Reader read_node(n_threads, file_chunks, filename, read_time);
             vector<std::unique_ptr<ff_node>> workers;
             for(int i=0; i<n_threads; i++){
-                workers.push_back(make_unique<freqTask>(partial_counts[i], file_chunks[i]));
+                workers.push_back(make_unique<freqTask>(partial_counts[i], file_chunks[i], freq_time_vec));
             }
             ff_Farm<freqTask> freq_farm(move(workers), read_node);
-            // ff_Pipe<> freq_pipe(read_node, freq_farm);
             freq_farm.remove_collector();            
             if (freq_farm.run_and_wait_end()<0) {
                 error("running farm\n");
                 return -1;
             }
+        
+        // join partial character counts
         timer.start("freq_join_overhead");
         for(auto &c : partial_counts){
             for(int i=0; i<c->size(); i++)
@@ -203,14 +229,19 @@ int main(int argc, char* argv[]){
             
         elapsed_time = logger.stop();
         
-        logger.add_stat("reading_input", read_time);
-        // logger.add_stat("freq_time", freq_time);
+        long freq_time = 0;
+        for(auto &t : (*freq_time_vec)){
+            freq_time += t;
+        }
+
+        logger.add_stat("reading_input", *read_time);
+        logger.add_stat("freq_time", freq_time);
         logger.add_stat("freq_join_overhead", freq_join_overhead);
 
         if(verbose){
             cout << "Reading input and counting character frequency took " << elapsed_time << " real usecs." << endl;
-            cout << "Reading input took " << read_time << " usecs." << endl;
-            // cout << "Counting characters took " << freq_time << " usecs in overall computation time between threads." << endl;
+            cout << "Reading input took " << *read_time << " usecs." << endl;
+            cout << "Counting characters took " << freq_time << " usecs in overall computation time between threads." << endl;
             cout << "Joining partial frequency counts took " << freq_join_overhead << " usecs." << endl;
         }
         
@@ -232,21 +263,19 @@ int main(int argc, char* argv[]){
         vector<long> encode_time_vec(n_threads);
 
         // encode and write to file in chunks
-
         logger.start("encode_and_write");
-
+            // write to file the metadata necessary to decode:
+            // number of chunks, and the table of character frequencies
             timer.start("write");
                 std::ofstream output_file(output_filename, std::ios::binary);  
-                // write number of chunks          
                 output_file.write(reinterpret_cast<const char *>(&n_threads), sizeof(n_threads));
-                // write encoding table
-                // more efficient ways exist
                 for(auto &f : count_vector){
                     output_file.write(reinterpret_cast<const char *>(&f), sizeof(f));
                 }
             write_time += timer.stop();
 
-            auto encode_chunk = [&](int i) {
+            // lambda function to encode and write a chunk of file
+            auto encode_chunk = [&m, &cv, &file_chunks, &code_table, &encode_time_vec, &write_time_vec, &output_file](int i) {
                 Timer timer_encode;
                 timer_encode.start("encode");
 
@@ -308,6 +337,8 @@ int main(int argc, char* argv[]){
 
                 int chunk_size = buffer_vec.size();
                 char padding = max_size-buf_len;
+
+                // wait until the chunk of the thread can be written
                 std::unique_lock lk(m);
                 while(i != write_id){
                     cv.wait(lk);
@@ -320,7 +351,7 @@ int main(int argc, char* argv[]){
                 // write the encoded binary
                 output_file.write(buffer_vec.data(), buffer_vec.size());
 
-                write_time_vec[i] =  timer.stop();;
+                write_time_vec[i] =  timer_encode.stop();;
                 write_id++;
                 cv.notify_all();
                 return;
@@ -348,16 +379,12 @@ int main(int argc, char* argv[]){
             cout << "Writing encoded file took " << write_time << " usecs." << endl;
         }
 
-        // if(verbose){
-        //     cout << "Input file is " << filesize/8 << " bytes long" <<endl;
-        //     cout<<endl<<endl;
-        // }
         logger.add_stat("total", tot_timer.stop());
     }
     if(logs){
         std::filesystem::create_directory("./logs");
         std::filesystem::create_directory("./logs/ff");
-        logger.write_logs(log_file, n_times);
+        logger.write_logs(log_file, n_times, n_threads);
     }
     return 0;
 }

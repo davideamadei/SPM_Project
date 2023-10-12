@@ -18,6 +18,11 @@ LIBS = $(UTILDIR)/logger.hpp $(UTILDIR)/huffman_tree.hpp
 
 all: seq_hc.out decode_test.out par_hc.out ff_hc.out
 
+logs_ff:
+	for number in 1 2 4 8 16 32 ; do \
+		./ff_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 30 -t $$number; \
+	done
+
 seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
@@ -102,6 +107,7 @@ clean:
 cleaner: clean
 	rm -rf *.out *.dat decoded* html/* latex/*
 
-# does not actually work, just used to store command
 create_large_test:
-	for i in {1..40}; do cat war-and-peace.txt >> large-test.txt; done
+	for i in {1..40}; do \
+		cat war-and-peace.txt >> large-test.txt; \
+	done

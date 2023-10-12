@@ -245,7 +245,7 @@ int main(int argc, char* argv[]){
     if(logs){
         std::filesystem::create_directory("./logs");
         std::filesystem::create_directory("./logs/seq");
-        logger.write_logs(log_file, n_times);
+        logger.write_logs(log_file, n_times, 1);
     }
     return 0;
 }

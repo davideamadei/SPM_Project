@@ -19,8 +19,6 @@
 
 using std::cout, std::clog, std::endl, std::string, std::vector, std::shared_ptr;
 
-std::mutex m;
-std::condition_variable cv;
 int write_id = 0;
 
 typedef struct{
@@ -38,7 +36,19 @@ void print_help(){
     cout << "\t -l: enable logging to file" << endl;
 }
 
-encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<char> &file_chunk, int id, std::ofstream &output_file){
+/**
+ * @brief function to encode and write a single chunk of file
+ * 
+ * @param code_table table of encodings
+ * @param file_chunk chunk of file to encode
+ * @param id id of the thread, used for writing
+ * @param output_file output filestream to write to
+ * @param m mutex to use
+ * @param cv condition variable to use
+ * @return encoding_results 
+ */
+encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<char> &file_chunk, int id, std::ofstream &output_file,
+                                std::mutex &m, std::condition_variable &cv){
     Timer timer;
     timer.start("encode");
     vector<char> buffer_vec;
@@ -100,6 +110,7 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
     char padding = max_size-buf_len;
     int chunk_size = buffer_vec.size();
 
+    // wait until the chunk of the thread can be written
     std::unique_lock lk(m);
     while(id != write_id){
         cv.wait(lk);
@@ -121,6 +132,9 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
 }
 
 int main(int argc, char* argv[]){
+
+    std::mutex m;
+    std::condition_variable cv;
 
     string filename = "";
     string output_filename = "";
@@ -166,7 +180,9 @@ int main(int argc, char* argv[]){
         print_help();
         return 0;
     }
-
+    
+    // build path to save logs
+    // assumes input file ends in 3 letter long file format e.g. .txt
     string log_file = "./logs/par/" + std::to_string(n_threads) + "_" + filename;
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
@@ -182,7 +198,6 @@ int main(int argc, char* argv[]){
         std::ifstream file(filename);
 
         std::stringstream file_buffer;
-        // string file_str;
 
         int filesize = std::filesystem::file_size(filename);
 
@@ -299,7 +314,8 @@ int main(int argc, char* argv[]){
             timer.start("encode_thread_overhead");
             for(int i=0; i<n_threads; i++){
                 encode_tids.push_back(move(std::async(std::launch::async, encode_chunk,
-                                             std::ref(code_table), std::ref(file_chunks[i]), i, std::ref(output_file))));
+                                             std::ref(code_table), std::ref(file_chunks[i]), i, std::ref(output_file),
+                                             std::ref(m), std::ref(cv))));
             }
             long encode_thread_overhead = timer.stop();
 
@@ -319,16 +335,12 @@ int main(int argc, char* argv[]){
             cout << "Writing encoded file took " << write_time << " usecs." << endl;
         }
 
-        // if(verbose){
-        //     cout << "Input file is " << filesize/8 << " bytes long" <<endl;
-        //     cout<<endl<<endl;
-        // }
         logger.add_stat("total", tot_timer.stop());
     }
     if(logs){
         std::filesystem::create_directory("./logs");
         std::filesystem::create_directory("./logs/par");
-        logger.write_logs(log_file, n_times);
+        logger.write_logs(log_file, n_times, n_threads);
     }
     return 0;
 }

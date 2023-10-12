@@ -56,7 +56,7 @@ class Logger{
          */
         std::map<std::string, double> cumulative_stats;
     public:
-        void write_logs(std::string filename, int n_tries);
+        void write_logs(std::string filename, int n_tries, int n_threads);
         void start(std::string stat_name);
         void add_stat(std::string stat_name, long time);
         long stop();
