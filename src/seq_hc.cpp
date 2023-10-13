@@ -74,10 +74,12 @@ int main(int argc, char* argv[]){
     log_file = log_file.substr(0, log_file.find_last_of('.'))+".csv";
 
     Logger logger;
+    Timer timer;
     long elapsed_time; 
 
     // loop n_times
     for(int i = 0; i < n_times; i++){
+        timer.start("total");
         std::ifstream file(filename);
 
         std::stringstream file_buffer;
@@ -88,13 +90,14 @@ int main(int argc, char* argv[]){
         // buffer to store the file
         std::vector<char> file_str(filesize);
 
+        long read_and_count_time = 0;
         // read file
         logger.start("reading_input");
             file_str.resize(filesize);
             file.read(&file_str[0], filesize);
+            file.close();
         elapsed_time = logger.stop();
-
-        file.close();
+        read_and_count_time += elapsed_time;
 
         if(verbose){
             cout << "Reading input file took " << elapsed_time << " usecs." << endl;
@@ -104,30 +107,20 @@ int main(int argc, char* argv[]){
         // can be directly indexed using ASCII characters
         std::vector<int> count_vector(128, 0);
 
-        logger.start("character_frequency_gathering");
+        logger.start("freq_time");
             for(int i=0; i<file_str.size(); i++)
             {
                 count_vector[file_str[i]]++;
             }
         elapsed_time = logger.stop();
+        read_and_count_time += elapsed_time;
+
+        logger.add_stat("read_and_count", read_and_count_time);
 
         if(verbose){
             cout << "Gathering character frequency took " << elapsed_time << " usecs." << endl;
         }
 
-
-        // if(verbose){
-        //     cout << endl;
-
-        //     clog << 10 << ", " << "LF" << ", " << count_vector[10] << endl;
-        //     clog << 13 << ", " << "CR" << ", " << count_vector[13] << endl;
-
-        //     // print character counts
-        //     for(int i=32; i<127; i++){
-        //         clog << i << ", " << char(i) << ", " << count_vector[i] << endl;
-        //     }
-        //     cout << endl;
-        // }
         
         // create the huffman tree and table of encodings
         logger.start("huffman_tree_creation");
@@ -140,6 +133,9 @@ int main(int argc, char* argv[]){
 
         auto code_table = ht.getCodes();
         
+        long encode_and_write_time = 0;
+
+
         std::vector<char> buffer_vec;
         // current size of the buffer
         int buf_len = 0;
@@ -150,14 +146,14 @@ int main(int argc, char* argv[]){
         // code of the character, stored as an int
         int code;
         // size of a single buffer
-        int max_size = sizeof(char) * 8;
+        const int max_size = sizeof(char) * 8;
 
         // there for consistency with parallel version
-        int n_chunks = 1;
+        const int n_chunks = 1;
 
         // actual encoding of the file
         // encoding is stored into a vector of chars
-        logger.start("encoding");
+        logger.start("encode");
             for(auto &c : file_str){
                 auto code_pair = code_table[c];
                 code = code_pair.second;
@@ -200,6 +196,7 @@ int main(int argc, char* argv[]){
                 buffer_vec.push_back(buffer << (max_size-buf_len));
             }
         elapsed_time = logger.stop();
+        encode_and_write_time += elapsed_time;
 
         if(verbose){
             cout << "Encoding the file took " << elapsed_time << " usecs." << endl;
@@ -213,7 +210,7 @@ int main(int argc, char* argv[]){
 
         std::ofstream output_file(output_filename, std::ios::binary);
 
-        logger.start("writing_output");
+        logger.start("write");
             // write number of chunks
             output_file.write(reinterpret_cast<const char *>(&n_chunks), sizeof(n_chunks));
 
@@ -230,7 +227,8 @@ int main(int argc, char* argv[]){
             // write the encoded binary
             output_file.write(buffer_vec.data(), buffer_vec.size());
         elapsed_time = logger.stop();
-
+        encode_and_write_time += elapsed_time;
+        logger.add_stat("encode_and_write", encode_and_write_time);
         if(verbose){
             cout << "Writing encoded file took " << elapsed_time << " usecs." << endl;
         }
@@ -240,7 +238,8 @@ int main(int argc, char* argv[]){
             cout << "Encoded file is " << chunk_byte_size << " bytes" << endl;
             cout<<endl<<endl;
         }
-
+        elapsed_time = timer.stop();
+        logger.add_stat("total", elapsed_time);
     }
     if(logs){
         std::filesystem::create_directory("./logs");

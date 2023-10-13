@@ -16,11 +16,37 @@ INCLUDES = -I $(UTILDIR) -I $(IDIR)
 
 LIBS = $(UTILDIR)/logger.hpp $(UTILDIR)/huffman_tree.hpp
 
-all: seq_hc.out decode_test.out par_hc.out ff_hc.out
+all: seq_hc.out decode_test.out par_hc.out par_hc2.out ff_hc.out
 
-logs_ff:
+logs_seq: all
+	./seq_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 30; 
+
+logs_par: all
+	for number in 1 2 4 8 16 32 ; do \
+		./par_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 30 -t $$number; \
+	done
+
+logs_par2: all
+	for number in 1 2 4 8 16 32 ; do \
+		./par_hc2.out -i war-and-peace.txt -o war-and-peace.dat -l -n 30 -t $$number; \
+	done
+
+logs_ff: all
 	for number in 1 2 4 8 16 32 ; do \
 		./ff_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 30 -t $$number; \
+	done
+
+logs_large_seq: all
+	./seq_hc.out -i large-test.txt -o large-test.dat -l -n 20; 
+
+logs_large_par: all
+	for number in 1 2 4 8 16 32 ; do \
+		./par_hc.out -i large-test.txt -o large-test.dat -l -n 20 -t $$number; \
+	done
+
+logs_large_ff: all
+	for number in 1 2 4 8 16 32 ; do \
+		./ff_hc.out -i large-test.txt -o large-test.dat -l -n 20 -t $$number; \
 	done
 
 seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
@@ -109,5 +135,5 @@ cleaner: clean
 
 create_large_test:
 	for i in {1..40}; do \
-		cat war-and-peace.txt >> large-test.txt; \
-	done
+		cat war-and-peace.txt; \
+	done >> large-test.txt
