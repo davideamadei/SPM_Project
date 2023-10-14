@@ -6,7 +6,12 @@
  * 
  */
 #include "logger.hpp"
+#include <filesystem>
 #include <fstream>
+#include <iostream>
+
+
+// Timer 
 
 /**
  * @brief method to start the timer
@@ -38,6 +43,51 @@ long Timer::stop(){
  */
 std::string Timer::getStr(){return timer_str;}
 
+
+
+// Logger
+
+/**
+ * @brief Construct a new Logger:: Logger object
+ * 
+ * If filename is empty the logger is initialized from scratch
+ * 
+ * @param filename file to use initialize the logger
+ * @param n_threads number of threads that the program is running
+ */
+Logger::Logger(std::string filename, int n_threads){
+    if(!std::filesystem::exists(filename)){
+        cumulative_stats["stats"] = n_threads;
+        cumulative_stats["times_run"] = 1;
+        return;
+    }
+    std::ifstream file(filename);
+    std::string word;
+    std::string stat;
+    int i = 0;
+
+    // read stats row
+    file >> stat;
+    file >> word;
+    cumulative_stats[stat] = std::stod(word);
+    // read times_run row
+    file >> stat;
+    file >> word;
+    auto n_times = std::stod(word);
+    cumulative_stats[stat] = stod(word) + 1;
+
+    while(file>>word)
+    {
+        if(i%2 == 0){
+            stat = word;
+        }
+        else{
+            cumulative_stats[stat] = std::stod(word);
+        }
+        i++;
+    }
+}
+
 /**
  * @brief method to start the internal timer of the logger
  * 
@@ -59,7 +109,7 @@ long Logger::stop(){
     auto elapsed = timer.stop();
     std::string stat_name = timer.getStr();
     if(cumulative_stats.contains(stat_name)){
-        cumulative_stats[stat_name] += elapsed;
+        cumulative_stats[stat_name] += (elapsed - cumulative_stats[stat_name])/cumulative_stats["times_run"];
     }
     else{
         cumulative_stats[stat_name] = elapsed;
@@ -76,7 +126,7 @@ long Logger::stop(){
  */
 void Logger::add_stat(std::string stat_name, long time){
     if(cumulative_stats.contains(stat_name)){
-        cumulative_stats[stat_name] += time;
+        cumulative_stats[stat_name] += (time - cumulative_stats[stat_name])/cumulative_stats["times_run"];
     }
     else{
         cumulative_stats[stat_name] = time;
@@ -90,13 +140,15 @@ void Logger::add_stat(std::string stat_name, long time){
  * @param filename file in which to save the logs (will be ovewritten with each write)
  * @param n_tries number of times the code was executed. Needed to average the gathered times
  */
-void Logger::write_logs(std::string filename, int n_tries, int n_threads){
+void Logger::write_logs(std::string filename){
     std::ofstream output_file(filename, std::ios::binary);
-    double avg;
-    output_file << "stat," << n_threads << std::endl;
+    double n_times = cumulative_stats["times_run"];
+    output_file << "stats " << cumulative_stats["stats"] << std::endl;
+    output_file << "times_run " << cumulative_stats["times_run"] << std::endl;
     for(auto &s : cumulative_stats){
-        avg = s.second / n_tries;
-        output_file << s.first << "," << avg << std::endl;
+        if(s.first != "stats" && s.first != "times_run"){
+            output_file << s.first << " " << s.second << std::endl;
+        }
     }
     return;
 }

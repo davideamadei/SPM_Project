@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 CXX = g++
 CXXFLAGS = -std=c++20
 CXXFLAGS_FF = -std=c++17
@@ -13,11 +14,11 @@ IDIR = ./lib
 INCLUDES = -I $(UTILDIR) -I $(IDIR)
 
 .DEFAULT_GOAL := all
-.PHONY : all
+.PHONY : all logs
 
 LIBS = $(UTILDIR)/logger.hpp $(UTILDIR)/huffman_tree.hpp
 
-all: seq_hc.out decode_test.out par_hc.out par_hc2.out ff_hc.out
+all: seq_hc.out decode_test.out par_hc.out ff_hc.out
 
 
 # rules to make executables
@@ -26,9 +27,6 @@ seq_hc.out: $(ODIR)/seq_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
 par_hc.out: $(ODIR)/par_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
-
-par_hc2.out: $(ODIR)/par_hc2.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $< $(ODIR)/logger.o  $(ODIR)/huffman_tree.o
 
 ff_hc.out : $(ODIR)/ff_hc.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_tree.o
@@ -113,35 +111,87 @@ large_test_ff:
 numbers = 1 2 4 8 16 32 64 128
 
 logs_seq: all
-	./seq_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 50; 
+	for i in {1..50}; do \
+		./seq_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs; \
+	done 
 
 logs_par: all
-	for number in $(numbers) ; do \
-		./par_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 50 -t $$number; \
-	done
-
-logs_par2: all
-	for number in $(numbers) ; do \
-		./par_hc2.out -i war-and-peace.txt -o war-and-peace.dat -l -n 50 -t $$number; \
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./par_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs -t $$number; \
+		done; \
 	done
 
 logs_ff: all
-	for number in $(numbers) ; do \
-		./ff_hc.out -i war-and-peace.txt -o war-and-peace.dat -l -n 50 -t $$number; \
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./ff_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs -t $$number; \
+		done; \
 	done
 
 logs_large_seq: all
-	./seq_hc.out -i large-test.txt -o large-test.dat -l -n 50; 
+	./seq_hc.out -i large-test.txt -o large-test.dat -l logs; 
 
 logs_large_par: all
-	for number in $(numbers) ; do \
-		./par_hc.out -i large-test.txt -o large-test.dat -l -n 50 -t $$number; \
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./par_hc.out -i large-test.txt -o large-test.dat -l logs -t $$number; \
+		done; \
 	done
 
 logs_large_ff: all
-	for number in $(numbers) ; do \
-		./ff_hc.out -i large-test.txt -o large-test.dat -l -n 50 -t $$number; \
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./ff_hc.out -i large-test.txt -o large-test.dat -l logs -t $$number; \
+		done; \
 	done
+
+
+# logs without logging read and write times with frequency gathering and encoding
+
+logs_no_rw_par: all
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./par_hc.out -i war-and-peace.txt -l logs_no_rw -t $$number -d; \
+		done; \
+	done
+
+logs_no_rw_ff: all
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./ff_hc.out -i war-and-peace.txt -l logs_no_rw -t $$number -d; \
+		done; \
+	done
+
+logs_large_no_rw_par: all
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./par_hc.out -i large-test.txt -l logs_no_rw -t $$number -d; \
+		done; \
+	done
+
+logs_large_no_rw_ff: all
+	for i in {1..50}; do \
+		for number in $(numbers) ; do \
+			./ff_hc.out -i large-test.txt -l logs_no_rw -t $$number -d; \
+		done; \
+	done
+
+
+# logs shortcuts
+logs:
+	make logs_seq
+	make logs_par
+	make logs_ff
+	make logs_no_rw_par
+	make logs_no_rw_ff
+
+large_logs:
+	make logs_large_seq
+	make logs_large_par
+	make logs_large_ff
+	make logs_large_no_rw_par
+	make logs_large_no_rw_ff
 
 
 # make docs
@@ -157,7 +207,6 @@ clean:
 cleaner: clean
 	rm -rf *.out *.dat decoded* html/* latex/*
 
-# the command does not work from the makefile, it needs to be copied to shell
 create_large_test:
 	for i in {1..40}; do \
 		cat war-and-peace.txt; \
