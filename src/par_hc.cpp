@@ -19,8 +19,13 @@
 
 using std::cout, std::clog, std::endl, std::string, std::vector, std::shared_ptr;
 
+// tracks the next encoded chunk to write to file
 int write_id = 0;
 
+/**
+ * @brief type to store execution times of the encoding and writing process in the threads
+ * 
+ */
 typedef struct{
     long encode_time;
     long write_time;
@@ -52,7 +57,11 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
                                 std::mutex &m, std::condition_variable &cv){
     Timer timer;
     timer.start("encode");
+
+    // not reserving space here slows down code considerably because of the reallocations needed
     vector<char> buffer_vec;
+    buffer_vec.reserve(file_chunk.size()*2/3);
+
     // current size of the buffer
     int buf_len = 0;
     char buffer = 0;
@@ -69,7 +78,7 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
     for(auto &c : file_chunk){
         auto code_pair = code_table[c];
         code = code_pair.second;
-        remaining = code_pair.first;;
+        remaining = code_pair.first;
 
         // loop saving the encoding of the character to the buffer
         while(remaining != 0){
@@ -105,19 +114,20 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
     if(buf_len!=0){
         buffer_vec.push_back(buffer << (max_size-buf_len));
     }
+
     long time = timer.stop();
     encoding_results res;
     res.encode_time = time;
     char padding = max_size-buf_len;
     int chunk_size = buffer_vec.size();
 
+    // write to file the encoded chunk
     if(output_file.is_open()){
         // wait until the chunk of the thread can be written
         std::unique_lock lk(m);
         while(id != write_id){
             cv.wait(lk);
         }
-
         timer.start("write");
         // write size of chunk
         output_file.write(reinterpret_cast<const char *>(&chunk_size), sizeof(chunk_size));
@@ -217,8 +227,6 @@ int main(int argc, char* argv[]){
     write_id=0;
     std::ifstream file(filename);
 
-    std::stringstream file_buffer;
-
     int filesize = std::filesystem::file_size(filename);
 
     // vector of buffers to store the file in chunks
@@ -249,14 +257,12 @@ int main(int argc, char* argv[]){
     logger.start("read_and_count");
         for(int i=0; i<n_threads; i++){
             timer.start("reading_input");
-            if(i!=n_threads-1){
-                file_chunks[i].resize(chunk_size);
-                file.read(&(file_chunks[i])[0], chunk_size);
+            long read_size = chunk_size;
+            if(i==n_threads-1){
+                read_size += filesize % n_threads;
             }
-            else{
-                file_chunks[i].resize(chunk_size + filesize % n_threads);
-                file.read(&(file_chunks[i])[0], chunk_size + filesize % n_threads);
-            }
+            file_chunks[i].resize(read_size);
+            file.read(&(file_chunks[i])[0], read_size);
             read_time += timer.stop();
 
             if(!debug){
@@ -347,20 +353,23 @@ int main(int argc, char* argv[]){
             }
             write_time += timer.stop();
         }
-
-        timer.start("encode_thread_overhead");
+        
+        long encode_thread_overhead;
         for(int i=0; i<n_threads; i++){
+            timer.start("encode_thread_overhead");
             encode_tids.push_back(move(std::async(std::launch::async, encode_chunk,
                                             std::ref(code_table), std::ref(file_chunks[i]), i, std::ref(output_file),
                                             std::ref(m), std::ref(cv))));
+            encode_thread_overhead += timer.stop();
         }
-        long encode_thread_overhead = timer.stop();
 
+        // wait for the threads to finish
         for(int i=0; i<n_threads; i++){
             auto res = encode_tids[i].get();
             encode_time += res.encode_time;
             write_time += res.write_time;
         }
+
     elapsed_time = logger.stop();
     logger.add_stat("write", write_time);
     if(!debug){logger.add_stat("encode", encode_time);}

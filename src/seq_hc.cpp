@@ -131,6 +131,7 @@ int main(int argc, char* argv[]){
 
 
     std::vector<char> buffer_vec;
+    buffer_vec.reserve(file_str.size()*2/3);
     // current size of the buffer
     int buf_len = 0;
     char buffer = 0;

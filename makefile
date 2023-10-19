@@ -39,15 +39,19 @@ decode_test.out: $(ODIR)/decode_test.o $(LIBS) $(ODIR)/logger.o $(ODIR)/huffman_
 # generic rules to compile object files
 
 $(ODIR)/%.o: $(TESTDIR)/%.cpp
+	@mkdir -p $(ODIR)
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
 	
 $(ODIR)/%.o: $(SRCDIR)/%.cpp
+	@mkdir -p $(ODIR)
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 $(ODIR)/%.o: $(UTILDIR)/%.cpp
+	@mkdir -p $(ODIR)
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 $(ODIR)/%.o: $(HTDIR)/%.cpp
+	@mkdir -p $(ODIR)
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 
@@ -108,39 +112,41 @@ large_test_ff:
 
 # rules to run the program in its various versions and make logs for varying amounts of threads
 
-numbers = 1 2 4 8 16 32 64 128
+numbers = {1..64}
 
 logs_seq: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		./seq_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs; \
 	done 
 
 logs_par: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./par_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs -t $$number; \
 		done; \
 	done
 
 logs_ff: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./ff_hc.out -i war-and-peace.txt -o war-and-peace.dat -l logs -t $$number; \
 		done; \
 	done
 
 logs_large_seq: all
-	./seq_hc.out -i large-test.txt -o large-test.dat -l logs; 
+	for i in {1..10}; do \
+		./seq_hc.out -i large-test.txt -o large-test.dat -l logs;  \
+	done
 
 logs_large_par: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./par_hc.out -i large-test.txt -o large-test.dat -l logs -t $$number; \
 		done; \
 	done
 
 logs_large_ff: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./ff_hc.out -i large-test.txt -o large-test.dat -l logs -t $$number; \
 		done; \
@@ -150,28 +156,28 @@ logs_large_ff: all
 # logs without logging read and write times with frequency gathering and encoding
 
 logs_no_rw_par: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./par_hc.out -i war-and-peace.txt -l logs_no_rw -t $$number -d; \
 		done; \
 	done
 
 logs_no_rw_ff: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./ff_hc.out -i war-and-peace.txt -l logs_no_rw -t $$number -d; \
 		done; \
 	done
 
 logs_large_no_rw_par: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./par_hc.out -i large-test.txt -l logs_no_rw -t $$number -d; \
 		done; \
 	done
 
 logs_large_no_rw_ff: all
-	for i in {1..50}; do \
+	for i in {1..10}; do \
 		for number in $(numbers) ; do \
 			./ff_hc.out -i large-test.txt -l logs_no_rw -t $$number -d; \
 		done; \
@@ -202,10 +208,10 @@ docs:
 
 # clean directory
 clean:
-	rm -rf $(ODIR)/*.o
+	rm -rf $(ODIR)/
 
 cleaner: clean
-	rm -rf *.out *.dat decoded* html/* latex/*
+	rm -rf *.out *.dat decoded* html/ latex/
 
 create_large_test:
 	for i in {1..40}; do \

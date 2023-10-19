@@ -1,7 +1,7 @@
 /**
- * @file seq_hc.cpp
+ * @file ff_hc.cpp
  * @author Davide Amadei (davide.amadei97@gmail.com)
- * @brief file containing the parallel version of the huffman encoding using native c++ threads
+ * @brief file containing the parallel version of the huffman encoding using fastflow
  * @date 2023-10-04
  * 
  * Supports running multiple times for logging purposes 
@@ -21,6 +21,7 @@
 using std::cout, std::clog, std::endl, std::string, std::vector, std::shared_ptr;
 using namespace ff;
 
+// tracks the next encoded chunk to write to file
 int write_id = 0;
 
 void print_help(){
@@ -62,8 +63,7 @@ public:
 
         std::stringstream file_buffer;
 
-        // the call to standard library does not work as the code gets
-        // compiled with standard c++11 so this is a replacement
+        // the call to standard library used in the other versions does not work for some reason
         auto filesize = file.tellg();
         file.seekg( 0, std::ios::end );
         filesize = file.tellg() - filesize;
@@ -73,16 +73,13 @@ public:
         // compute size of a single chunk
         auto chunk_size = filesize / n_workers;
         for(int i=0; i<n_workers; i++){
-            // all but last chunk 
-            if(i!=n_workers-1){
-                file_chunks[i]->resize(chunk_size);
-                file.read(&(*(file_chunks[i]))[0], chunk_size);
+            
+            long read_size = chunk_size;
+            if(i==n_workers-1){
+                read_size += filesize % n_workers;
             }
-            // last chunk
-            else{
-                file_chunks[i]->resize(chunk_size + filesize % n_workers);
-                file.read(&(*(file_chunks[i]))[0], chunk_size + filesize % n_workers);
-            }
+            file_chunks[i]->resize(read_size);
+            file.read(&(*(file_chunks[i]))[0], read_size);
             if(!debug){ff_send_out(new int(i), i%n_workers);}
         }
         *read_time = timer.stop();
@@ -307,7 +304,9 @@ int main(int argc, char* argv[]){
             Timer timer_encode;
             timer_encode.start("encode");
 
+           // not reserving space here slows down code considerably because of the reallocations needed
             vector<char> buffer_vec;
+            buffer_vec.reserve(file_chunks[i]->size()*2/3);
 
             // current size of the buffer
             int buf_len = 0;
