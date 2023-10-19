@@ -76,13 +76,10 @@ int main(int argc, char* argv[]){
     timer.start("total");
     std::ifstream file(filename);
 
-    std::stringstream file_buffer;
-    // string file_str;
-
     int filesize = std::filesystem::file_size(filename);
 
     // buffer to store the file
-    std::vector<char> file_str(filesize);
+    std::vector<char> file_str;
 
     long read_and_count_time = 0;
     // read file
