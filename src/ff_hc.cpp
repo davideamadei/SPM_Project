@@ -58,7 +58,6 @@ public:
     }
     int * svc(int * in){
         Timer timer;
-        timer.start("reading");
         std::ifstream file(filename);
 
         std::stringstream file_buffer;
@@ -74,15 +73,17 @@ public:
         auto chunk_size = filesize / n_workers;
         for(int i=0; i<n_workers; i++){
             
+            timer.start("reading");
             long read_size = chunk_size;
             if(i==n_workers-1){
                 read_size += filesize % n_workers;
             }
             file_chunks[i]->resize(read_size);
             file.read(&(*(file_chunks[i]))[0], read_size);
+            *read_time += timer.stop();
+
             if(!debug){ff_send_out(new int(i), i%n_workers);}
         }
-        *read_time = timer.stop();
 
         if(debug){
             for(int i=0; i<n_workers; i++){

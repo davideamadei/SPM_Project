@@ -354,7 +354,7 @@ int main(int argc, char* argv[]){
             write_time += timer.stop();
         }
         
-        long encode_thread_overhead;
+        long encode_thread_overhead = 0;
         for(int i=0; i<n_threads; i++){
             timer.start("encode_thread_overhead");
             encode_tids.push_back(move(std::async(std::launch::async, encode_chunk,
