@@ -1,0 +1,13 @@
+stats 5
+times_run 10
+encode 18847.5
+encode_and_write 6135.5
+encode_thread_overhead 216.1
+freq_join_overhead 0
+freq_thread_overhead 273.2
+freq_time 4948.41
+huffman_tree_creation 72.0999
+read_and_count 3808.8
+reading_input 2392.5
+total 10039.8
+write 1746.4
