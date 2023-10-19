@@ -79,30 +79,31 @@ int main(int argc, char* argv[]){
     int filesize = std::filesystem::file_size(filename);
 
     // buffer to store the file
-    std::vector<char> file_str;
+    std::vector<unsigned char> file_str;
 
     long read_and_count_time = 0;
     // read file
     logger.start("reading_input");
         file_str.resize(filesize);
-        file.read(&file_str[0], filesize);
+        file.read(reinterpret_cast<char *>(&file_str[0]), filesize);
         file.close();
     elapsed_time = logger.stop();
     read_and_count_time += elapsed_time;
-
+    
     if(verbose){
         cout << "Reading input file took " << elapsed_time << " usecs." << endl;
     }
 
     // use array to store character counts
     // can be directly indexed using ASCII characters
-    std::vector<int> count_vector(128, 0);
+    std::vector<int> count_vector(256, 0);
 
     logger.start("freq_time");
         for(int i=0; i<file_str.size(); i++)
         {
-            count_vector[file_str[i]]++;
+            count_vector[int(file_str[i])]++;
         }
+
     elapsed_time = logger.stop();
     read_and_count_time += elapsed_time;
 
@@ -117,15 +118,14 @@ int main(int argc, char* argv[]){
     logger.start("huffman_tree_creation");
         HuffmanTree ht(count_vector);
     elapsed_time = logger.stop();
-
+    
     if(verbose){
         cout << "Creating the Huffman tree and extracting the code table took " << elapsed_time << " usecs." << endl;
     }
 
     auto code_table = ht.getCodes();
-    
-    long encode_and_write_time = 0;
 
+    long encode_and_write_time = 0;
 
     std::vector<char> buffer_vec;
     buffer_vec.reserve(file_str.size()*2/3);
@@ -142,15 +142,13 @@ int main(int argc, char* argv[]){
 
     // there for consistency with parallel version
     const int n_chunks = 1;
-
     // actual encoding of the file
     // encoding is stored into a vector of chars
     logger.start("encode");
         for(auto &c : file_str){
-            auto code_pair = code_table[c];
+            auto code_pair = code_table[int(c)];
             code = code_pair.second;
             remaining = code_pair.first;;
-
             // loop saving the encoding of the character to the buffer
             while(remaining != 0){
                 // buffer has reached maximum size
@@ -232,7 +230,6 @@ int main(int argc, char* argv[]){
     }
     elapsed_time = timer.stop();
     logger.add_stat("total", elapsed_time);
-
     if(log_folder != ""){
         std::filesystem::create_directory("./" + log_folder);
         std::filesystem::create_directory("./" + log_folder + "/seq");

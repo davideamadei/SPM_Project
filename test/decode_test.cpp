@@ -25,10 +25,9 @@ int main(int argc, char* argv[]){
 
     std::ifstream input_file(filename, std::ios::binary);
     int n_chunks;
-    std::vector<int> count_vector(128);
+    std::vector<int> count_vector(256);
     input_file.read(reinterpret_cast<char *>(&n_chunks), sizeof(n_chunks));
-
-    for(int i=0;i<128;i++){
+    for(int i=0;i<256;i++){
         input_file.read(reinterpret_cast<char *>(&(count_vector[i])), sizeof(count_vector[i]));
     }
 
@@ -43,7 +42,6 @@ int main(int argc, char* argv[]){
         input_file.read(reinterpret_cast<char *>(&chunk_size), sizeof(chunk_size));
 
         input_file.read(&padding, sizeof(padding));
-
         int bitsize = chunk_size*8 - padding;
 
         std::vector<char> buffer_vec(chunk_size);
@@ -51,7 +49,7 @@ int main(int argc, char* argv[]){
             input_file.read(&buf, sizeof(buf));
         }      
 
-        char ch;
+        unsigned char ch;
         auto current_node = ht.getRoot();
         int maxsize = sizeof(char) *8;
         int counter = 0;
@@ -61,7 +59,7 @@ int main(int argc, char* argv[]){
             for(int buf_shift=7; buf_shift>=0; buf_shift--){
                 if(current_node->getLeftChild()==nullptr){
                     ch = current_node->getCh();
-                    output_file.write(&ch, 1);
+                    output_file.write(reinterpret_cast<char *>(&ch), 1);
                     current_node = ht.getRoot();
                 }
                 if(counter == bitsize){
@@ -78,7 +76,7 @@ int main(int argc, char* argv[]){
         }
         if(current_node->getLeftChild()==nullptr){
             ch = current_node->getCh();
-            output_file.write(&ch, 1);
+            output_file.write(reinterpret_cast<char *>(&ch), 1);
             current_node = ht.getRoot();
         }
         

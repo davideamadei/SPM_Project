@@ -18,7 +18,7 @@
  * @param init_ch character to store in the node
  * @param init_frequency frequency to store in the node
  */
-HuffmanNode::HuffmanNode(char init_ch, int init_frequency){
+HuffmanNode::HuffmanNode(unsigned char init_ch, int init_frequency){
         ch = init_ch;
         frequency = init_frequency;
     }
@@ -28,7 +28,7 @@ HuffmanNode::HuffmanNode(char init_ch, int init_frequency){
  * 
  * @return char 
  */
-char HuffmanNode::getCh(){return ch;}
+unsigned char HuffmanNode::getCh(){return ch;}
 /**
  * @brief getter method for frequency stored
  * 
@@ -165,12 +165,11 @@ void HuffmanTree::extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, i
 HuffmanTree::HuffmanTree(std::vector<int> char_counts){
     // vector containing the leaves of the tree
     std::vector<std::shared_ptr<HuffmanNode>> ht_leaves;
-    for(int i=0; i<128; i++){
+    for(int i=0; i<char_counts.size(); i++){
         if(char_counts[i] != 0){
             ht_leaves.push_back(std::shared_ptr<HuffmanNode>(new HuffmanNode(i, char_counts[i])));
         }
     }
-    
     // sort the leaves by frequency, necessary for creating the huffman tree
     auto compare_node = [](std::shared_ptr<HuffmanNode> n1, std::shared_ptr<HuffmanNode> n2) 
         {return n1->getFrequency() < n2->getFrequency();};

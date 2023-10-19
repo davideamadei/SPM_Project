@@ -44,12 +44,12 @@ void print_help(){
 class Reader : public ff_monode_t<int>{
 private:
     int n_workers;
-    vector<shared_ptr<vector<char>>> file_chunks;
+    vector<shared_ptr<vector<unsigned char>>> file_chunks;
     shared_ptr<long> read_time;
     string filename;
     bool debug;
 public:
-    Reader(int n_workers, vector<shared_ptr<vector<char>>> file_chunks, string filename, shared_ptr<long> read_time, bool debug){
+    Reader(int n_workers, vector<shared_ptr<vector<unsigned char>>> file_chunks, string filename, shared_ptr<long> read_time, bool debug){
         this->filename = filename;
         this->n_workers = n_workers;
         this->file_chunks = file_chunks;
@@ -68,7 +68,8 @@ public:
         filesize = file.tellg() - filesize;
         file.clear();
         file.seekg(0, std::ios::beg);
-
+        
+        *read_time = 0;
         // compute size of a single chunk
         auto chunk_size = filesize / n_workers;
         for(int i=0; i<n_workers; i++){
@@ -79,7 +80,7 @@ public:
                 read_size += filesize % n_workers;
             }
             file_chunks[i]->resize(read_size);
-            file.read(&(*(file_chunks[i]))[0], read_size);
+            file.read(reinterpret_cast<char *>(&(*(file_chunks[i]))[0]), read_size);
             *read_time += timer.stop();
 
             if(!debug){ff_send_out(new int(i), i%n_workers);}
@@ -100,10 +101,11 @@ public:
 class freqTask : public ff_node_t<int>{
 private:
     shared_ptr<vector<int>> partial_counts;
-    shared_ptr<vector<char>> file_chunk;
+    shared_ptr<vector<unsigned char>> file_chunk;
     shared_ptr<vector<long>> freq_time_vec;
 public:
-    freqTask(shared_ptr<vector<int>> partial_counts, shared_ptr<vector<char>> file_chunk, shared_ptr<vector<long>> freq_time_vec){
+    freqTask(shared_ptr<vector<int>> partial_counts, shared_ptr<vector<unsigned char>> file_chunk,
+            shared_ptr<vector<long>> freq_time_vec){
         this->partial_counts = partial_counts;
         this->file_chunk = file_chunk;
         this->freq_time_vec = freq_time_vec;
@@ -112,7 +114,7 @@ public:
         Timer timer;
         timer.start("freq");
         for(int j=0; j<file_chunk->size(); j++){
-            (*partial_counts)[(*file_chunk)[j]]++;
+            (*partial_counts)[int((*file_chunk)[j])]++;
         }
         (*freq_time_vec)[*i] = timer.stop();
         free(i);
@@ -204,18 +206,18 @@ int main(int argc, char* argv[]){
     vector<shared_ptr<vector<int>>> partial_counts(n_threads);
     // initialize vectors
     for(int i=0; i<partial_counts.size(); i++){
-        partial_counts[i] = std::make_shared<vector<int>>(128);
+        partial_counts[i] = std::make_shared<vector<int>>(256);
     }
 
     // vector to store final character counts
-    vector<int> count_vector(128);
+    vector<int> count_vector(256);
     // time to read file, including the resizing of the buffer
     shared_ptr<long> read_time(new long);
-
+    
     // vector storing the file in chunks
-    vector<shared_ptr<vector<char>>> file_chunks(n_threads);
+    vector<shared_ptr<vector<unsigned char>>> file_chunks(n_threads);
     for(int i=0; i<file_chunks.size(); i++){
-        file_chunks[i] = std::make_shared<vector<char>>();
+        file_chunks[i] = std::make_shared<vector<unsigned char>>();
     }
 
     // vector to store execution times
@@ -323,7 +325,7 @@ int main(int argc, char* argv[]){
             // actual encoding of the file
             // encoding is stored into a vector of chars
             for(auto &c : *(file_chunks)[i]){
-                auto code_pair = code_table[c];
+                auto code_pair = code_table[int(c)];
                 code = code_pair.second;
                 remaining = code_pair.first;;
 

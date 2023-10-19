@@ -53,7 +53,7 @@ void print_help(){
  * @param cv condition variable to use
  * @return encoding_results 
  */
-encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<char> &file_chunk, int id, std::ofstream &output_file,
+encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<unsigned char> &file_chunk, int id, std::ofstream &output_file,
                                 std::mutex &m, std::condition_variable &cv){
     Timer timer;
     timer.start("encode");
@@ -76,7 +76,7 @@ encoding_results encode_chunk(vector<std::pair<int,int>> &code_table, vector<cha
     // actual encoding of the file
     // encoding is stored into a vector of chars
     for(auto &c : file_chunk){
-        auto code_pair = code_table[c];
+        auto code_pair = code_table[int(c)];
         code = code_pair.second;
         remaining = code_pair.first;
 
@@ -221,7 +221,7 @@ int main(int argc, char* argv[]){
     Timer timer;
     long elapsed_time; 
     Timer tot_timer;
-
+    
     // loop n_times
     tot_timer.start("total");
     write_id=0;
@@ -230,11 +230,11 @@ int main(int argc, char* argv[]){
     int filesize = std::filesystem::file_size(filename);
 
     // vector of buffers to store the file in chunks
-    vector<vector<char>> file_chunks(n_threads);
+    vector<vector<unsigned char>> file_chunks(n_threads);
     int chunk_size = filesize / n_threads;
 
     // vector of vectors storing partial character counts
-    vector<vector<int>> partial_counts(n_threads, vector<int>(128, 0));
+    vector<vector<int>> partial_counts(n_threads, vector<int>(256, 0));
 
     // vector storing thread ids
     vector<std::future<long>> count_tids;
@@ -244,7 +244,7 @@ int main(int argc, char* argv[]){
         Timer timer;
         timer.start("freq_time");
         for(int i=0; i<file_chunks[tid].size(); i++){
-            partial_counts[tid][file_chunks[tid][i]]++;
+            partial_counts[tid][int(file_chunks[tid][i])]++;
         }
         long elapsed = timer.stop();
         return elapsed;
@@ -262,7 +262,7 @@ int main(int argc, char* argv[]){
                 read_size += filesize % n_threads;
             }
             file_chunks[i].resize(read_size);
-            file.read(&(file_chunks[i])[0], read_size);
+            file.read(reinterpret_cast<char *>(&(file_chunks[i])[0]), read_size);
             read_time += timer.stop();
 
             if(!debug){
@@ -296,7 +296,7 @@ int main(int argc, char* argv[]){
 
         // use array to store character counts
         // can be directly indexed using ASCII characters
-        vector<int> count_vector(128, 0);
+        vector<int> count_vector(256, 0);
 
         timer.start("freq_join_overhead");
         for(auto &c : partial_counts){

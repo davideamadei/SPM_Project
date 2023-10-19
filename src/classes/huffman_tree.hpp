@@ -45,9 +45,9 @@ class HuffmanNode{
          */
         std::shared_ptr<HuffmanNode> parent = nullptr;
     public:
-        HuffmanNode(char init_ch, int init_frequency);
+        HuffmanNode(unsigned char init_ch, int init_frequency);
 
-        char getCh();
+        unsigned char getCh();
         int getFrequency();
         std::shared_ptr<HuffmanNode> getLeftChild();
         std::shared_ptr<HuffmanNode> getRightChild();
@@ -81,7 +81,7 @@ class HuffmanTree{
          * as an integer.
          * 
          */
-        std::vector<std::pair<int, int>> code_table = std::vector<std::pair<int, int>>(128);
+        std::vector<std::pair<int, int>> code_table = std::vector<std::pair<int, int>>(256);
         void extract_codes_rec(std::shared_ptr<HuffmanNode> huffman_tree, int code, int length);
 
     public:
